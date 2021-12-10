@@ -11,12 +11,13 @@ import string
 from pathlib import Path
 import numpy as np
 from functools import partial
-from scipy.ndimage import gaussian_filter
 import logging
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 import pandas as pd
+import numba
+import scipy.special
 from collections import namedtuple
 
 sns.set_style('whitegrid')
@@ -85,9 +86,8 @@ def get_representative_xyz(chain_obj, representative_atom='CB', dtype=np.float32
 
 def parse_a3m(filename):
     '''
-    * read A3M and convert letters into
-    * integers in the 0..20 range,
-    * also keep track of insertions
+    read A3M and convert letters into integers in the 0..20 range, also keep track of 
+    * source code from <https://github.com/RosettaCommons/trRosetta2/blob/main/trRosetta/parsers.py>
     '''
 
     msa = []
@@ -145,28 +145,71 @@ def parse_a3m(filename):
     return {'msa':msa, 'ins':ins}
 
 
-def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float) -> np.ndarray:
+def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:
     idx0 = idx[0]
     idx1 = idx[1]
     assert v_max > v_min and size_bins > 0
     num_bins = round((v_max - v_min) / size_bins) + 1
     bin_mat = np.zeros(mat.shape+(num_bins,), dtype=np.bool_)
-    bin_mat[idx0, idx1, 0] = 1
-    bin_mat[:, :, 0] = ~bin_mat[:, :, 0]
     use_mat = mat[idx0, idx1]
-    for bin_i in range(1, num_bins):
-        bin_mat[idx0, idx1, bin_i] = np.where(
-            (use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i), True, False)
-    
+    if non_contact_at_first:
+        bin_mat[idx0, idx1, 0] = 1
+        bin_mat[:, :, 0] = ~bin_mat[:, :, 0]
+        for bin_i in range(1, num_bins):
+            bin_mat[idx0, idx1, bin_i] = np.where(
+                (use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i), True, False)
+    else:
+        bin_mat[idx0, idx1, num_bins-1] = 1
+        bin_mat[:, :, num_bins-1] = ~bin_mat[:, :, num_bins-1]
+        for bin_i in range(1, num_bins):
+            bin_mat[idx0, idx1, bin_i-1] = np.where(
+                (use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i), True, False)
     return bin_mat.astype(np.float32)
 
 
-def get_bins_tex(size_bins: float, v_min: float, v_max: float, init='$[0,2) \cup [20,+\infty)$'):
+def get_bins_tex(size_bins: float, v_min: float, v_max: float, init='$[0,2) \cup [20,+\infty)$', non_contact_at_first:bool=True):
     assert v_max > v_min and size_bins > 0
     num_bins = round((v_max - v_min) / size_bins) + 1
-    bins = [init]
-    for bin_i in range(1, num_bins):
-        cur = v_min + size_bins * (bin_i-1)
-        cur_next = v_min + size_bins * bin_i
-        bins.append(f'$[{cur},{cur_next})$')
+    if non_contact_at_first:
+        bins = [init]
+        for bin_i in range(1, num_bins):
+            cur = v_min + size_bins * (bin_i-1)
+            cur_next = v_min + size_bins * bin_i
+            bins.append(f'$[{cur},{cur_next})$')
+    else:
+        bins = []
+        for bin_i in range(1, num_bins):
+            cur = v_min + size_bins * (bin_i-1)
+            cur_next = v_min + size_bins * bin_i
+            bins.append(f'$[{cur},{cur_next})$')
+        bins.append(init)
     return bins
+
+
+def loc_ij(n, cn2, i, j):
+    if j > i:
+        return cn2 - scipy.special.comb(n-i, 2, exact=True) + j - i - 1
+    elif i > j:
+        return cn2 - scipy.special.comb(n-j, 2, exact=True) + i - j - 1
+    else:
+        return
+
+
+@numba.njit(cache=True)
+def identity_score(a, b):
+    '''
+    usage:
+    >>> ar = scipy.spatial.distance.pdist(msa, metric=identity_score)
+    >>> sar = scipy.spatial.distance.squareform(ar)
+    >>> np.fill_diagonal(sar, 1)
+    >>> # OR
+    >>> n = msa.shape[0]
+    >>> cn2 = scipy.special.comb(n, 2, exact=True)
+    >>> loc_ij_func = partial(loc_ij, n, cn2)
+    >>> sar = np.ones((n, n), dtype=np.float32)
+    >>> for i in range(n-1):
+            for j in range(i+1, n):
+                sar[i,j] = sar[j,i] = ar[loc_ij_func(i,j)]
+    '''
+    mask_ab_sum = ((a == 20) & (b == 20)).sum()
+    return ((a == b).sum() - mask_ab_sum)/(a.shape[0] - mask_ab_sum)
