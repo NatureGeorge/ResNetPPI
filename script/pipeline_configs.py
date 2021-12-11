@@ -84,9 +84,67 @@ def get_representative_xyz(chain_obj, representative_atom='CB', dtype=np.float32
     return xyz
 
 
+"""
+fasta_pat = re.compile(r'>(.+)\n([A-z\-\n\s]+)')
+aa_alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-"), dtype='|S1').view(np.uint8)
+ascii_lowercase_table = str.maketrans(dict.fromkeys(string.ascii_lowercase))
+ascii_lowercase_table[10] = None
+ascii_lowercase_table[32] = None
+
+
+def load_msa(path, ret_headers: bool = False):
+    with Path(path).open('rt') as handle:
+        headers, seqs = zip(*fasta_pat.findall(handle.read()))
+        seqs = (c.translate(ascii_lowercase_table) for c in seqs)
+        msa = np.asarray([list(s) for s in seqs], dtype='|S1').view(np.uint8)
+        for i in range(aa_alphabet.shape[0]):
+            msa[msa == aa_alphabet[i]] = i
+        msa[msa > 20] = 20
+        if not ret_headers:
+            return msa
+        else:
+            return headers, msa
+"""
+
+
+ref_seq_pat = re.compile(r"[ARNDCQEGHILKMFPSTWYVX]+")
+aa_alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-X"), dtype='|S1').view(np.uint8)
+
+
+def aa2index(seq):
+    for i in range(aa_alphabet.shape[0]):
+        seq[seq == aa_alphabet[i]] = i
+    seq[seq > 21] = 20
+
+
+def load_pairwise_aln_from_a3m(path):
+    with Path(path).open('rt') as handle:
+        next(handle)
+        ref_seq = next(handle).rstrip()
+        assert bool(ref_seq_pat.fullmatch(ref_seq)), 'Unexpected seq!'
+        ref_seq_vec = np.array(list(ref_seq), dtype='|S1').view(np.uint8)
+        aa2index(ref_seq_vec)
+        for line in handle:
+            if line.startswith('>'):
+                continue
+            oth_seq = line.rstrip()
+            mask_insertion = np.array([False if aa.isupper() or aa == '-' else True for aa in oth_seq])
+            if mask_insertion.any():
+                ret_ref_seq_vec = np.full(mask_insertion.shape, 20, dtype=np.uint8)
+                ret_ref_seq_vec[np.where(~mask_insertion)] = ref_seq_vec
+                oth_seq_vec = np.array([(aa.upper() if ins else aa) for aa, ins in zip(oth_seq, mask_insertion)], dtype='|S1').view(np.uint8)
+                aa2index(oth_seq_vec)
+                yield ret_ref_seq_vec, oth_seq_vec
+            else:
+                oth_seq_vec = np.array(list(oth_seq), dtype='|S1').view(np.uint8)
+                aa2index(oth_seq_vec)
+                # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
+                yield ref_seq_vec, oth_seq_vec
+
+
 def parse_a3m(filename):
     '''
-    read A3M and convert letters into integers in the 0..20 range, also keep track of 
+    read A3M and convert letters into integers in the 0..20 range, also keep track of insertions
     * source code from <https://github.com/RosettaCommons/trRosetta2/blob/main/trRosetta/parsers.py>
     '''
 
