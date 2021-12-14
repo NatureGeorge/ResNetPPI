@@ -9,25 +9,25 @@ import torch.nn as nn
 
 class ResNet1DResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels,
-                 kernel_size=5, dilation=2, **kwargs):
+                 kernel_size=3, dilation=2, **kwargs):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         padding = dilation*((kernel_size-1)//2)
         self.blocks = nn.Sequential(
-            nn.Sequential(nn.BatchNorm1d(in_channels),
-                          nn.Conv1d(in_channels, out_channels, kernel_size,
-                                    dilation=dilation, padding=padding, bias=False, **kwargs)),
+            nn.Sequential(nn.Conv1d(in_channels, out_channels, kernel_size,
+                                    dilation=dilation, padding=padding, bias=False, **kwargs),
+                          nn.BatchNorm1d(out_channels)),
             nn.ELU(inplace=True),
-            nn.Sequential(nn.BatchNorm1d(in_channels),
-                          nn.Conv1d(in_channels, out_channels, kernel_size,
-                                    dilation=dilation, padding=padding, bias=False, **kwargs)),
+            nn.Sequential(nn.Conv1d(in_channels, out_channels, kernel_size,
+                                    dilation=dilation, padding=padding, bias=False, **kwargs),
+                          nn.BatchNorm1d(out_channels))
         )
         self.activate = nn.ELU(inplace=True)
         if in_channels != out_channels:
-            self.projection = nn.Sequential(nn.BatchNorm1d(in_channels),
-                                            nn.Conv1d(in_channels, out_channels, kernel_size,
-                                                      dilation=dilation, padding=padding, bias=False, **kwargs))
+            self.projection = nn.Sequential(nn.Conv1d(in_channels, out_channels, kernel_size,
+                                                      dilation=dilation, padding=padding, bias=False, **kwargs),
+                                            nn.BatchNorm1d(out_channels))
 
     def forward(self, x):
         residual = x
@@ -45,13 +45,13 @@ class ResNet2DResidualBlock(nn.Module):
         self.out_channels = out_channels
         padding = (dilation*(kernel_size-1)//2, dilation*(kernel_size-1)//2)
         self.blocks = nn.Sequential(
-            nn.Sequential(nn.BatchNorm2d(in_channels),
-                          nn.Conv2d(in_channels, out_channels, kernel_size,
-                                    dilation=dilation, padding=padding, bias=False, **kwargs)),
+            nn.Sequential(nn.Conv2d(in_channels, out_channels, kernel_size,
+                                    dilation=dilation, padding=padding, bias=False, **kwargs),
+                          nn.BatchNorm2d(out_channels)),
             nn.ELU(inplace=True),
-            nn.Sequential(nn.BatchNorm2d(in_channels),
-                          nn.Conv2d(in_channels, out_channels, kernel_size,
-                                    dilation=dilation, padding=padding, bias=False, **kwargs)),
+            nn.Sequential(nn.Conv2d(in_channels, out_channels, kernel_size,
+                                    dilation=dilation, padding=padding, bias=False, **kwargs),
+                          nn.BatchNorm2d(out_channels)),
         )
         self.activate = nn.ELU(inplace=True)
     
@@ -77,7 +77,7 @@ class ResNet2DLayer(nn.Module):
 
 class ResNet2D(nn.Module):
     def __init__(self, in_channels, deepths, 
-                        kernel_size=5, channel_size=64, dilation=2,
+                        kernel_size=3, channel_size=96, dilation=2,
                         **kwargs):
         super().__init__()
         self.gate = nn.Sequential(
