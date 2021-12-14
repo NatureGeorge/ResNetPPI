@@ -3,7 +3,7 @@
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
 # @Last Modified: 2021-10-15 06:38:56 pm
-from coords6d import *
+from ResNetPPI.coords6d import *
 import re
 from pathlib import Path
 import numpy as np
@@ -194,3 +194,43 @@ def identity_score(a, b):
     '''
     mask_ab_sum = ((a == 20) & (b == 20)).sum()
     return ((a == b).sum() - mask_ab_sum)/(a.shape[0] - mask_ab_sum)
+
+
+def to_interval(lyst):
+    if not isinstance(lyst, (set, frozenset)):
+        lyst = frozenset(int(i) for i in lyst if i is not None)
+    if len(lyst) == 0:
+        return tuple()
+
+    start = []
+    interval_lyst = []
+    max_edge = max(lyst)
+    min_edge = min(lyst)
+
+    if len(lyst) == (max_edge + 1 - min_edge):
+        return ((min_edge, max_edge),)
+
+    lyst_list = sorted(lyst)
+
+    for j in lyst_list:
+        if len(start) == 0:
+            i = j
+            start.append(j)
+            i += 1
+        else:
+            if (i != j) or (j == max(lyst_list)):
+                if j == max(lyst_list):
+                    if (i != j):
+                        interval_lyst.append(start)
+                        interval_lyst.append([j])
+                        break
+                    else:
+                        start.append(j)
+                interval_lyst.append(start)
+                start = [j]
+                i = j + 1
+            else:
+                start.append(j)
+                i += 1
+
+    return tuple((min(li), max(li)) for li in interval_lyst)

@@ -3,7 +3,6 @@
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
 # @Last Modified: 2021-12-14 06:45:10 pm
-import torch
 import torch.nn as nn
 
 

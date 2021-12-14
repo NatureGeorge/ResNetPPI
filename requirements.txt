@@ -1,0 +1,6 @@
+torch
+numpy
+scipy
+pytorch-lightning
+numba
+gemmi
