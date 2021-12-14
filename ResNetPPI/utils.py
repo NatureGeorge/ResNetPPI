@@ -1,27 +1,17 @@
 # @Created Date: 2021-10-15 06:38:47 pm
-# @Filename: pipeline_configs.py
+# @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
 # @Last Modified: 2021-10-15 06:38:56 pm
 from coords6d import *
-import gemmi
-import prody
 import re
-import string
 from pathlib import Path
 import numpy as np
-from functools import partial
 import logging
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-import seaborn as sns
-import pandas as pd
 import numba
 import scipy.special
 from collections import namedtuple
 
-sns.set_style('whitegrid')
-sns.set_style({'font.family': 'serif', 'font.serif': ['Times New Roman']})
 CONSOLE = logging.StreamHandler()
 CONSOLE.setLevel(logging.WARNING)
 LOGGER = logging.getLogger('ZZFLog')
@@ -56,12 +46,19 @@ def prepare_input_seq_and_folder(folder, seq_header, seq):
     return fasta_file
 
 
-def get_real_or_virtual_CB(res):
+def get_real_or_virtual_CB(res, gly_ca: bool = False):
     if res.name != 'GLY':
         try:
             return res['CB'][0].pos.tolist()
         except Exception:
             LOGGER.warning(f"no CB for {res}")
+    else:
+        if gly_ca:
+            try:
+                return res['CA'][0].pos.tolist()
+            except Exception as e:
+                LOGGER.error(f"no CA for {res}")
+                raise e
     try:
         Ca = res['CA'][0].pos
         b = Ca - res['N'][0].pos
@@ -73,38 +70,15 @@ def get_real_or_virtual_CB(res):
     return (-0.58273431*a + 0.56802827*b - 0.54067466*c + Ca).tolist()
 
 
-def get_representative_xyz(chain_obj, representative_atom='CB', dtype=np.float32):
+def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = False, dtype=np.float32):
     if representative_atom == 'CB':
-        xyz = np.array([get_real_or_virtual_CB(res) for res in chain_obj], dtype=dtype)
+        xyz = np.array([get_real_or_virtual_CB(res, gly_ca) for res in chain_obj], dtype=dtype)
     elif representative_atom == 'CA':
         xyz = np.array([res['CA'][0].pos.tolist() for res in chain_obj], dtype=dtype)
     else:
         return
     assert xyz.shape[0] == chain_obj.length(), "Missing anchor atoms!"
     return xyz
-
-
-"""
-fasta_pat = re.compile(r'>(.+)\n([A-z\-\n\s]+)')
-aa_alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-"), dtype='|S1').view(np.uint8)
-ascii_lowercase_table = str.maketrans(dict.fromkeys(string.ascii_lowercase))
-ascii_lowercase_table[10] = None
-ascii_lowercase_table[32] = None
-
-
-def load_msa(path, ret_headers: bool = False):
-    with Path(path).open('rt') as handle:
-        headers, seqs = zip(*fasta_pat.findall(handle.read()))
-        seqs = (c.translate(ascii_lowercase_table) for c in seqs)
-        msa = np.asarray([list(s) for s in seqs], dtype='|S1').view(np.uint8)
-        for i in range(aa_alphabet.shape[0]):
-            msa[msa == aa_alphabet[i]] = i
-        msa[msa > 20] = 20
-        if not ret_headers:
-            return msa
-        else:
-            return headers, msa
-"""
 
 
 ref_seq_pat = re.compile(r"[ARNDCQEGHILKMFPSTWYVX]+")
@@ -134,73 +108,22 @@ def load_pairwise_aln_from_a3m(path):
                 ret_ref_seq_vec[np.where(~mask_insertion)] = ref_seq_vec
                 oth_seq_vec = np.array([(aa.upper() if ins else aa) for aa, ins in zip(oth_seq, mask_insertion)], dtype='|S1').view(np.uint8)
                 aa2index(oth_seq_vec)
-                yield ret_ref_seq_vec, oth_seq_vec
+                yield np.asarray([ret_ref_seq_vec, oth_seq_vec])
             else:
                 oth_seq_vec = np.array(list(oth_seq), dtype='|S1').view(np.uint8)
                 aa2index(oth_seq_vec)
                 # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
-                yield ref_seq_vec, oth_seq_vec
+                yield np.asarray([ref_seq_vec, oth_seq_vec])
 
 
-def parse_a3m(filename):
-    '''
-    read A3M and convert letters into integers in the 0..20 range, also keep track of insertions
-    * source code from <https://github.com/RosettaCommons/trRosetta2/blob/main/trRosetta/parsers.py>
-    '''
-
-    msa = []
-    ins = []
-
-    table = str.maketrans(dict.fromkeys(string.ascii_lowercase))
-
-    # read file line by line
-    for line in open(filename,"r"):
-
-        # skip labels
-        if line[0] == '>':
-            continue
-
-        # remove right whitespaces
-        line = line.rstrip()
-
-        # remove lowercase letters and append to MSA
-        msa.append(line.translate(table))
-
-        # sequence length
-        L = len(msa[-1])
-
-        # 0 - match or gap; 1 - insertion
-        a = np.array([0 if c.isupper() or c=='-' else 1 for c in line])
-        i = np.zeros((L))
-
-        if np.sum(a) > 0:
-            # positions of insertions
-            pos = np.where(a==1)[0]
-
-            # shift by occurrence
-            a = pos - np.arange(pos.shape[0])
-
-            # position of insertions in cleaned sequence
-            # and their length
-            pos,num = np.unique(a, return_counts=True)
-
-            # append to the matrix of insetions
-            i[pos] = num
-
-        ins.append(i)
-
-    # convert letters into numbers
-    alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-"), dtype='|S1').view(np.uint8)
-    msa = np.array([list(s) for s in msa], dtype='|S1').view(np.uint8)
-    for i in range(alphabet.shape[0]):
-        msa[msa == alphabet[i]] = i
-
-    # treat all unknown characters as gaps
-    msa[msa > 20] = 20
-
-    ins = np.array(ins, dtype=np.uint8)
-
-    return {'msa':msa, 'ins':ins}
+def gen_ref_msa_from_pairwise_aln(pw_aln):
+    use_idx = np.where(pw_aln[0][0] != 20)[0]
+    ref_msa = np.ones((len(pw_aln)+1, use_idx.shape[0]), dtype=np.uint8)
+    ref_msa[0] = pw_aln[0][0][use_idx]
+    for idx, (pw_ref, pw_hmo) in enumerate(pw_aln):
+        use_idx = np.where(pw_ref!=20)[0]
+        ref_msa[idx+1] = pw_hmo[use_idx]
+    return ref_msa
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:

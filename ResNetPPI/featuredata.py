@@ -1,4 +1,8 @@
-import numpy as np
+# @Created Date: 2021-12-14 06:58:33 pm
+# @Filename: featuredata.py
+# @Email:  zhuzefeng@stu.pku.edu.cn
+# @Author: Zefeng Zhu
+# @Last Modified: 2021-12-14 06:58:55 pm
 
 # Hydrophobic residues and hydrophilic residues were classified according to the ordering of hydrophobicity in the following paper.:
 # Miyazawa, S., & Jernigan, R. L. (1996). 
@@ -9,14 +13,3 @@ import numpy as np
 hydrophobic_group = (0, 4, 9, 10, 12, 13, 17, 18, 19) # seq order: ARNDCQEGHILKMFPSTWYV
 hydrophilic_group = tuple(i for i in range(20) if i not in hydrophobic_group)
 hydrophobic_bool_tab = dict(tuple(zip(hydrophobic_group, [1]*len(hydrophobic_group)))+tuple(zip(hydrophilic_group, [0]*len(hydrophilic_group))))
-
-
-def hydrophobic_preference(msa, m_eff=None):
-    r'''
-    the hydrophobic preference of each position:
-    $$
-    P_{i}^{\text{hydro}} = \frac{1}{M_{\text{eff}}}\sum_{j}^{M}h_{ij}
-    $$
-    '''
-    hy = np.isin(msa, hydrophobic_group)
-    return hy.sum(axis=0)/(hy.shape[0] if m_eff is None else m_eff)

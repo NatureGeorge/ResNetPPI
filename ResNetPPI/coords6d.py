@@ -1,3 +1,8 @@
+# @Created Date: 2021-12-14 06:53:34 pm
+# @Filename: coords6d.py
+# @Email:  zhuzefeng@stu.pku.edu.cn
+# @Author: Zefeng Zhu
+# @Last Modified: 2021-12-14 06:55:16 pm
 import numpy as np
 import scipy
 import scipy.spatial
@@ -36,3 +41,4 @@ def get_dist6d_2(Cb_1: np.ndarray, Cb_2: np.ndarray, dmax: float = 20.0, dist_fi
     mask = dist6d_2 > dmax
     dist6d_2[mask] = dist_fill_value
     return np.where(~mask), dist6d_2
+

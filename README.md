@@ -1,1 +1,1 @@
-# PiFold
+# ResNetPPI
