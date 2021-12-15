@@ -16,7 +16,7 @@
 # @Filename: featuredata.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-14 06:58:55 pm
+# @Last Modified: 2021-12-15 11:00:07 am
 
 # Hydrophobic residues and hydrophilic residues were classified according to the ordering of hydrophobicity in the following paper.:
 # Miyazawa, S., & Jernigan, R. L. (1996). 

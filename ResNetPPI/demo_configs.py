@@ -16,7 +16,7 @@
 # @Filename: demo_configs.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-14 07:00:34 pm
+# @Last Modified: 2021-12-15 11:00:34 am
 import gemmi
 from functools import partial
 import matplotlib.pyplot as plt

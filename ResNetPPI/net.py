@@ -16,16 +16,29 @@
 # @Filename: net.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-14 06:45:10 pm
+# @Last Modified: 2021-12-16 12:12:27 am
 import torch.nn as nn
 
 
-class ResNet1DResidualBlock(nn.Module):
+class ResidualBlockBase(nn.Module):
+    def forward(self, x):
+        residual = x
+        x = self.blocks(x)
+        x += residual
+        x = self.activate(x)
+        return x
+
+
+class ResNetLayerBase(nn.Module):
+    def forward(self, x):
+        x = self.blocks(x)
+        return x
+
+
+class ResNet1DResidualBlock(ResidualBlockBase):
     def __init__(self, in_channels, out_channels,
                  kernel_size=3, dilation=2, **kwargs):
         super().__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
         padding = dilation*((kernel_size-1)//2)
         self.blocks = nn.Sequential(
             nn.Sequential(nn.Conv1d(in_channels, out_channels, kernel_size,
@@ -37,22 +50,9 @@ class ResNet1DResidualBlock(nn.Module):
                           nn.BatchNorm1d(out_channels))
         )
         self.activate = nn.ELU(inplace=True)
-        if in_channels != out_channels:
-            self.projection = nn.Sequential(nn.Conv1d(in_channels, out_channels, kernel_size,
-                                                      dilation=dilation, padding=padding, bias=False, **kwargs),
-                                            nn.BatchNorm1d(out_channels))
-
-    def forward(self, x):
-        residual = x
-        x = self.blocks(x)
-        if self.in_channels != self.out_channels:
-            residual = self.projection(residual)
-        x += residual
-        x = self.activate(x)
-        return x
 
 
-class ResNet2DResidualBlock(nn.Module):
+class ResNet2DResidualBlock(ResidualBlockBase):
     def __init__(self, in_channels, out_channels, kernel_size, dilation, **kwargs):
         super().__init__()
         self.out_channels = out_channels
@@ -67,24 +67,42 @@ class ResNet2DResidualBlock(nn.Module):
                           nn.BatchNorm2d(out_channels)),
         )
         self.activate = nn.ELU(inplace=True)
-    
-    def forward(self, x):
-        residual = x
-        x = self.blocks(x)
-        x += residual
-        x = self.activate(x)
-        return x
 
 
-class ResNet2DLayer(nn.Module):
+class ResNet1DLayer(ResNetLayerBase):
+    def __init__(self, out_channels, kernel_size, dilation, n_layer, **kwargs):
+        super().__init__()
+        self.blocks = nn.Sequential(
+            *[ResNet1DResidualBlock(out_channels, out_channels, kernel_size, dilation, **kwargs) for _ in range(n_layer)]
+        )
+
+
+class ResNet2DLayer(ResNetLayerBase):
     def __init__(self, out_channels, kernel_size, dilation, n_layer, **kwargs):
         super().__init__()
         self.blocks = nn.Sequential(
             *[ResNet2DResidualBlock(out_channels, out_channels, kernel_size, dilation, **kwargs) for _ in range(n_layer)]
         )
 
+
+class ResNet1D(nn.Module):
+    def __init__(self, in_channels, deepths, 
+                        kernel_size=3, channel_size=64, dilation=1,
+                        **kwargs):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.Conv1d(in_channels, channel_size, kernel_size=1, bias=False),
+            nn.BatchNorm1d(channel_size),
+            nn.ELU(inplace=True),
+        )
+        self.blocks = nn.ModuleList([
+            *[ResNet1DLayer(channel_size, kernel_size, dilation, n_layer=n, **kwargs) for n in deepths]
+        ])
+        
     def forward(self, x):
-        x = self.blocks(x)
+        x = self.gate(x)
+        for block in self.blocks:
+            x = block(x)
         return x
 
 

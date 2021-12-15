@@ -16,7 +16,7 @@
 # @Filename: plot.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-14 09:47:04 pm
+# @Last Modified: 2021-12-15 11:01:00 am
 from ResNetPPI.demo_configs import *
 from ResNetPPI.utils import get_bins_tex, binned_dist6d_1, binned_dist6d_12
 from matplotlib.animation import FuncAnimation

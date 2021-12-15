@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-10-15 06:38:56 pm
+# @Last Modified: 2021-12-15 10:03:59 pm
 from ResNetPPI.coords6d import *
 import re
 from pathlib import Path
@@ -211,10 +211,7 @@ def identity_score(a, b):
 
 
 def to_interval(lyst):
-    if not isinstance(lyst, (set, frozenset)):
-        lyst = frozenset(int(i) for i in lyst if i is not None)
-    if len(lyst) == 0:
-        return tuple()
+    assert len(lyst) > 0
 
     start = []
     interval_lyst = []
@@ -222,7 +219,7 @@ def to_interval(lyst):
     min_edge = min(lyst)
 
     if len(lyst) == (max_edge + 1 - min_edge):
-        return ((min_edge, max_edge),)
+        return [[min_edge, max_edge]]
 
     lyst_list = sorted(lyst)
 
@@ -247,4 +244,4 @@ def to_interval(lyst):
                 start.append(j)
                 i += 1
 
-    return tuple((min(li), max(li)) for li in interval_lyst)
+    return [[min(li), max(li)] for li in interval_lyst]

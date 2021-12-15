@@ -16,7 +16,7 @@
 # @Filename: coords6d.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-14 06:55:16 pm
+# @Last Modified: 2021-12-15 11:00:20 am
 import numpy as np
 import scipy
 import scipy.spatial
