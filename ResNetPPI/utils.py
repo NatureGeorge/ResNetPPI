@@ -1,3 +1,17 @@
+# Copyright 2021 Zefeng Zhu
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # @Created Date: 2021-10-15 06:38:47 pm
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
@@ -88,7 +102,7 @@ aa_alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-X"), dtype='|S1').view(np.uint
 def aa2index(seq):
     for i in range(aa_alphabet.shape[0]):
         seq[seq == aa_alphabet[i]] = i
-    seq[seq > 21] = 20
+    seq[seq > 21] = 21
 
 
 def load_pairwise_aln_from_a3m(path):
