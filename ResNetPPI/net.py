@@ -16,7 +16,7 @@
 # @Filename: net.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-16 12:12:27 am
+# @Last Modified: 2021-12-16 12:18:49 am
 import torch.nn as nn
 
 
@@ -36,8 +36,7 @@ class ResNetLayerBase(nn.Module):
 
 
 class ResNet1DResidualBlock(ResidualBlockBase):
-    def __init__(self, in_channels, out_channels,
-                 kernel_size=3, dilation=2, **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, **kwargs):
         super().__init__()
         padding = dilation*((kernel_size-1)//2)
         self.blocks = nn.Sequential(
@@ -86,9 +85,7 @@ class ResNet2DLayer(ResNetLayerBase):
 
 
 class ResNet1D(nn.Module):
-    def __init__(self, in_channels, deepths, 
-                        kernel_size=3, channel_size=64, dilation=1,
-                        **kwargs):
+    def __init__(self, in_channels, deepths, kernel_size=3, channel_size=64, dilation=1, **kwargs):
         super().__init__()
         self.gate = nn.Sequential(
             nn.Conv1d(in_channels, channel_size, kernel_size=1, bias=False),
@@ -107,9 +104,7 @@ class ResNet1D(nn.Module):
 
 
 class ResNet2D(nn.Module):
-    def __init__(self, in_channels, deepths, 
-                        kernel_size=3, channel_size=96, dilation=2,
-                        **kwargs):
+    def __init__(self, in_channels, deepths, kernel_size=3, channel_size=96, dilation=2, **kwargs):
         super().__init__()
         self.gate = nn.Sequential(
             nn.Conv2d(in_channels, channel_size, kernel_size=kernel_size, padding=2, bias=False),

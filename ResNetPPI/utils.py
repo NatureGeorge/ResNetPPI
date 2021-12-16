@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-15 10:03:59 pm
+# @Last Modified: 2021-12-16 11:24:33 am
 from ResNetPPI.coords6d import *
 import re
 from pathlib import Path
@@ -130,11 +130,11 @@ def load_pairwise_aln_from_a3m(path):
                 yield np.asarray([ref_seq_vec, oth_seq_vec])
 
 
-def gen_ref_msa_from_pairwise_aln(pw_aln):
-    use_idx = np.where(pw_aln[0][0] != 20)[0]
-    ref_msa = np.ones((len(pw_aln)+1, use_idx.shape[0]), dtype=np.uint8)
-    ref_msa[0] = pw_aln[0][0][use_idx]
-    for idx, (pw_ref, pw_hmo) in enumerate(pw_aln):
+def gen_ref_msa_from_pairwise_aln(pw_msa):
+    use_idx = np.where(pw_msa[0][0] != 20)[0]
+    ref_msa = np.ones((len(pw_msa)+1, use_idx.shape[0]), dtype=np.uint8)
+    ref_msa[0] = pw_msa[0][0][use_idx]
+    for idx, (pw_ref, pw_hmo) in enumerate(pw_msa):
         use_idx = np.where(pw_ref!=20)[0]
         ref_msa[idx+1] = pw_hmo[use_idx]
     return ref_msa
