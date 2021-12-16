@@ -16,17 +16,26 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-16 11:41:08 am
+# @Last Modified: 2021-12-16 03:15:25 pm
 import numpy as np
+import scipy.spatial
 import torch
+from torch import nn
 from ResNetPPI.net import ResNet1D, ResNet2D
+from ResNetPPI.utils import identity_score, gen_ref_msa_from_pairwise_aln, load_pairwise_aln_from_a3m
 
+
+# SETTINGS
 ONEHOT_DIM = 22
 ENCODE_DIM = 44 # 46 if add hydrophobic features
 ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
-# ONEHOT = torch.eye(ONEHOT_DIM, dtype=torch.float32)
-resnet1d = ResNet1D(44, [8])
 
+
+# NETWORKS
+resnet1d = ResNet1D(ENCODE_DIM, [8])
+
+
+# FUNCTIONS
 def onehot_encoding(aln: np.ndarray):
     encoding = ONEHOT[aln].transpose((0, 2, 1))
     encoding = encoding.reshape(-1, encoding.shape[-1])
@@ -34,6 +43,7 @@ def onehot_encoding(aln: np.ndarray):
 
 
 # def onehot_encoding(aln):
+#     ONEHOT = torch.eye(ONEHOT_DIM, dtype=torch.float32)
 #     aln = torch.from_numpy(aln)
 #     encoding = ONEHOT[aln.to(torch.int64)].transpose(-1, -2)
 #     encoding = encoding.reshape(-1, encoding.shape[-1])
@@ -53,3 +63,35 @@ def gen_pw_embedding(pw_msa):
         else:
             yield msa_embedding
 
+
+def msa_embedding(pw_msa):
+    return torch.cat(tuple(gen_pw_embedding(pw_msa)))
+
+
+def get_eff_weights(pw_msa):
+    '''
+    NOTE:
+    following identity calculation include the reference sequence 
+    and ignore those insertion regions of the homologous sequences
+    '''
+    ref_msa = gen_ref_msa_from_pairwise_aln(pw_msa)
+    iden_score_mat = scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(ref_msa, metric=identity_score))
+    np.fill_diagonal(iden_score_mat, 1)
+    iden_eff_weights = 1.0/(iden_score_mat >= 0.8).sum(axis=0)
+    # M_eff = iden_eff_weights.sum()
+    return iden_eff_weights.astype(np.float32)
+
+
+class ResNetPPI: # (nn.Module)
+    def forward(self, msa_file):
+        pw_msa = tuple(load_pairwise_aln_from_a3m(msa_file))
+        iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:])
+        m_eff = iden_eff_weights.sum()
+        iden_eff_weights = iden_eff_weights.reshape(1, iden_eff_weights.shape[0])
+        msa_embeddings = msa_embedding(pw_msa)
+        one_body_term = torch.matmul(iden_eff_weights, msa_embeddings.transpose(0,1))
+        # $C \times L$
+        one_body_term = one_body_term.reshape(one_body_term.shape[0], one_body_term.shape[2])/m_eff
+        # $C \times C$
+        # two_body_term
+        # 
