@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-16 03:15:25 pm
+# @Last Modified: 2021-12-16 05:53:16 pm
 import numpy as np
 import scipy.spatial
 import torch
@@ -78,20 +78,35 @@ def get_eff_weights(pw_msa):
     iden_score_mat = scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(ref_msa, metric=identity_score))
     np.fill_diagonal(iden_score_mat, 1)
     iden_eff_weights = 1.0/(iden_score_mat >= 0.8).sum(axis=0)
-    # M_eff = iden_eff_weights.sum()
+    # m_eff = iden_eff_weights.sum()
     return iden_eff_weights.astype(np.float32)
 
 
 class ResNetPPI: # (nn.Module)
-    def forward(self, msa_file):
+    def gen_coevolution_aggregator(self, msa_file):
         pw_msa = tuple(load_pairwise_aln_from_a3m(msa_file))
         iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:])
         m_eff = iden_eff_weights.sum()
         iden_eff_weights = iden_eff_weights.reshape(1, iden_eff_weights.shape[0])
+        # MSA Embeddings: $K \times C \times L$
         msa_embeddings = msa_embedding(pw_msa)
+        # One-Body Term: $C \times L$ -> $C \times 1$
+        ## $(1 \times K) \times (K \times C \times L)$ -> $C \times L$
         one_body_term = torch.matmul(iden_eff_weights, msa_embeddings.transpose(0,1))
-        # $C \times L$
         one_body_term = one_body_term.reshape(one_body_term.shape[0], one_body_term.shape[2])/m_eff
-        # $C \times C$
-        # two_body_term
-        # 
+        for idx_i in range(one_body_term.shape[1]-1):
+            f_i = one_body_term[:, idx_i]
+            x_k_i = msa_embeddings[:, :, idx_i]
+            for idx_j in range(idx_i+1, one_body_term.shape[1]):
+                f_j = one_body_term[:, idx_j]
+                x_k_j = msa_embeddings[:, :, idx_j]
+                # Two-Body Term: $C \times C$
+                ## $(K \times C) \otimes (K \times C)$ -> $K \times C \times C$
+                x_k_ij = torch.einsum('ki,kj->kij', x_k_i, x_k_j)
+                ## $(1 \times K) \times (K \times C \times C)$ -> $C \times C$
+                two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij.transpose(0, 1))
+                two_body_term_ij = two_body_term_ij.reshape(two_body_term_ij.shape[0], two_body_term_ij.shape[2])/m_eff
+                # assert two_body_term_ij.shape[0] == two_body_term_ij.shape[1]
+                ## $C + C + C^2$
+                yield (idx_i, idx_j), torch.cat((f_i, f_j, two_body_term_ij.flatten()))
+
