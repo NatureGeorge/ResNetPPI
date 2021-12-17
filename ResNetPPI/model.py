@@ -16,11 +16,11 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-17 12:03:07 am
+# @Last Modified: 2021-12-17 10:15:20 am
 import numpy as np
 import scipy.spatial
 import torch
-from torch import nn
+import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import identity_score, gen_ref_msa_from_pairwise_aln, load_pairwise_aln_from_a3m
 
@@ -54,20 +54,33 @@ def get_eff_weights(pw_msa):
     return iden_eff_weights.astype(np.float32)
 
 
-class ResNetPPI: # (nn.Module)
+class ResNetPPI: # (pl.LightningModule)
     def __init__(self, device_id: int = -1):
         self.device = torch.device(f'cuda:{device_id}') if (
             device_id >= 0 and 
             torch.cuda.is_available() and 
             torch.cuda.device_count() > 0) else torch.device('cpu')
-        self.resnet1d = ResNet1D(ENCODE_DIM, [8]).to(self.device)
-        self.resnet2d = ResNet2D(4224, [4]*18).to(self.device)
+        self.resnet1d = ResNet1D(ENCODE_DIM, [8])#.to(self.device)
+        self.resnet2d = ResNet2D(4224, [4]*18)#.to(self.device)
         self.resnet2d_out = self.resnet2d.blocks[-1].blocks[-1].out_channels
     
+    def forward(self, x):
+        pass
+    
+    def training_step(self, train_batch, batch_idx):
+        pass
+
+    def validation_step(self, val_batch, batch_idx):
+        pass
+    
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
+
     def onehot_encoding(self, aln: np.ndarray):
         encoding = ONEHOT[aln].transpose((0, 2, 1))
         encoding = encoding.reshape(-1, encoding.shape[-1])
-        return torch.from_numpy(encoding).to(self.device)
+        return torch.from_numpy(encoding)#.to(self.device)
 
     def pw_encoding(self, aln: np.ndarray):
         return self.onehot_encoding(aln).reshape(1, ENCODE_DIM, -1)
@@ -93,7 +106,7 @@ class ResNetPPI: # (nn.Module)
         ## $(1 \times K) \times (K \times C \times L)$ -> $C \times L$
         one_body_term = torch.matmul(iden_eff_weights, msa_embeddings.transpose(0,1))
         one_body_term = one_body_term.reshape(one_body_term.shape[0], one_body_term.shape[2])/m_eff
-        assert self.ref_length == one_body_term.shape[1]
+        # assert self.ref_length == one_body_term.shape[1]
         for idx_i in range(self.ref_length-1):
             f_i = one_body_term[:, idx_i]
             x_k_i = msa_embeddings[:, :, idx_i]
@@ -107,16 +120,16 @@ class ResNetPPI: # (nn.Module)
                 two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij.transpose(0, 1))
                 two_body_term_ij = two_body_term_ij.reshape(two_body_term_ij.shape[0], two_body_term_ij.shape[2])/m_eff
                 ## $C + C + C^2$
-                yield (idx_i, idx_j), torch.cat((f_i, f_j, two_body_term_ij.flatten()))
+                yield torch.cat((f_i, f_j, two_body_term_ij.flatten()))
 
     def get_coevo_couplings(self, msa_file):
         pw_msa = tuple(load_pairwise_aln_from_a3m(msa_file))
-        iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:]).to(self.device)
+        iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:])#.to(self.device)
         # MSA Embeddings: $K \times C \times L$
         msa_embeddings = self.msa_embedding(pw_msa)  # set self.ref_length
         coevo_agg = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings)
-        coevo_couplings = torch.zeros((self.ref_length, self.ref_length, 4224), dtype=torch.float32)
-        for (idx_i, idx_j), coevo_cp in coevo_agg:
-            coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
-        return coevo_couplings.reshape(-1, -3)
+        coevo_couplings = torch.zeros((self.ref_length*(self.ref_length-1)//2, 4224), dtype=torch.float32)
+        for idx_ij, coevo_cp in enumerate(coevo_agg):
+            coevo_couplings[idx_ij, :] = coevo_cp
+        return coevo_couplings#.transpose(-1, -2)
 
