@@ -16,19 +16,26 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-17 10:15:20 am
+# @Last Modified: 2021-12-19 03:19:01 pm
+import re
+import json
+import zlib
+from pathlib import Path
 import numpy as np
 import scipy.spatial
 import torch
+from torch import nn
 import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
-from ResNetPPI.utils import identity_score, gen_ref_msa_from_pairwise_aln, load_pairwise_aln_from_a3m
+from ResNetPPI.utils import identity_score, gen_ref_msa_from_pairwise_aln
 
 
 # SETTINGS
 ONEHOT_DIM = 22
 ENCODE_DIM = 44 # 46 if add hydrophobic features
 ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
+REF_SEQ_PAT = re.compile(r"[ARNDCQEGHILKMFPSTWYVX]+")
+AA_ALPHABET = np.array(list("ARNDCQEGHILKMFPSTWYV-X"), dtype='|S1').view(np.uint8)
 
 
 # FUNCTIONS
@@ -54,6 +61,12 @@ def get_eff_weights(pw_msa):
     return iden_eff_weights.astype(np.float32)
 
 
+def aa2index(seq):
+    for i in range(AA_ALPHABET.shape[0]):
+        seq[seq == AA_ALPHABET[i]] = i
+    seq[seq > 21] = 21
+
+
 class ResNetPPI: # (pl.LightningModule)
     def __init__(self, device_id: int = -1):
         self.device = torch.device(f'cuda:{device_id}') if (
@@ -62,10 +75,10 @@ class ResNetPPI: # (pl.LightningModule)
             torch.cuda.device_count() > 0) else torch.device('cpu')
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])#.to(self.device)
         self.resnet2d = ResNet2D(4224, [4]*18)#.to(self.device)
-        self.resnet2d_out = self.resnet2d.blocks[-1].blocks[-1].out_channels
-    
-    def forward(self, x):
-        pass
+        self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False)
+        self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False)
+        self.softmax_func = nn.Softmax(dim=1)
+        self.loss_func = nn.CrossEntropyLoss()
     
     def training_step(self, train_batch, batch_idx):
         pass
@@ -76,6 +89,33 @@ class ResNetPPI: # (pl.LightningModule)
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
+    
+    def load_pairwise_aln_from_a3m(self, path):
+        with Path(path).open('rt') as handle:
+            self.ref_seq_info = json.loads(next(handle)[1:])
+            self.ref_seq_info['obs_mask'] = torch.from_numpy(
+                np.where(np.array(list(zlib.decompress(eval(
+                    self.ref_seq_info['obs_mask'])).decode('utf-8')), dtype=np.uint8))[0])
+            ref_seq = next(handle).rstrip()
+            assert bool(REF_SEQ_PAT.fullmatch(ref_seq)), 'Unexpected seq!'
+            ref_seq_vec = np.array(list(ref_seq), dtype='|S1').view(np.uint8)
+            aa2index(ref_seq_vec)
+            for line in handle:
+                if line.startswith('>'):
+                    continue
+                oth_seq = line.rstrip()
+                mask_insertion = np.array([False if aa.isupper() or aa == '-' else True for aa in oth_seq])
+                if mask_insertion.any():
+                    ret_ref_seq_vec = np.full(mask_insertion.shape, 20, dtype=np.uint8)
+                    ret_ref_seq_vec[np.where(~mask_insertion)] = ref_seq_vec
+                    oth_seq_vec = np.array([(aa.upper() if ins else aa) for aa, ins in zip(oth_seq, mask_insertion)], dtype='|S1').view(np.uint8)
+                    aa2index(oth_seq_vec)
+                    yield np.asarray([ret_ref_seq_vec, oth_seq_vec])
+                else:
+                    oth_seq_vec = np.array(list(oth_seq), dtype='|S1').view(np.uint8)
+                    aa2index(oth_seq_vec)
+                    # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
+                    yield np.asarray([ref_seq_vec, oth_seq_vec])
 
     def onehot_encoding(self, aln: np.ndarray):
         encoding = ONEHOT[aln].transpose((0, 2, 1))
@@ -89,7 +129,7 @@ class ResNetPPI: # (pl.LightningModule)
         self.ref_length = (pw_msa[0][0] != 20).sum() # ref_msa.shape[1]
         for pw_aln in pw_msa:
             # $1 \times C \times L_k$
-            msa_embedding = self.resnet1d(self.pw_encoding(pw_aln))
+            msa_embedding = self.resnet1d(self.pw_encoding(pw_aln))  # TODO: optimize with torch.utils.data.DataLoader
             if pw_aln.shape[1] != self.ref_length:
                 yield msa_embedding[:, :, pw_aln[0] != 20]  # NOTE: maybe a point to optimize (CPU <-> GPU)
             else:
@@ -101,7 +141,7 @@ class ResNetPPI: # (pl.LightningModule)
     def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings):
         # Weights: $1 \times K$
         m_eff = iden_eff_weights.sum()
-        iden_eff_weights = iden_eff_weights.reshape(1, iden_eff_weights.shape[0])
+        iden_eff_weights = iden_eff_weights.unsqueeze(0)
         # One-Body Term: $C \times L$ -> $C \times 1$
         ## $(1 \times K) \times (K \times C \times L)$ -> $C \times L$
         one_body_term = torch.matmul(iden_eff_weights, msa_embeddings.transpose(0,1))
@@ -120,16 +160,34 @@ class ResNetPPI: # (pl.LightningModule)
                 two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij.transpose(0, 1))
                 two_body_term_ij = two_body_term_ij.reshape(two_body_term_ij.shape[0], two_body_term_ij.shape[2])/m_eff
                 ## $C + C + C^2$
-                yield torch.cat((f_i, f_j, two_body_term_ij.flatten()))
+                yield (idx_i, idx_j), torch.cat((f_i, f_j, two_body_term_ij.flatten()))
 
-    def get_coevo_couplings(self, msa_file):
-        pw_msa = tuple(load_pairwise_aln_from_a3m(msa_file))
+    def forward_single_protein(self, msa_file):
+        pw_msa = tuple(self.load_pairwise_aln_from_a3m(msa_file))
         iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:])#.to(self.device)
         # MSA Embeddings: $K \times C \times L$
         msa_embeddings = self.msa_embedding(pw_msa)  # set self.ref_length
         coevo_agg = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings)
-        coevo_couplings = torch.zeros((self.ref_length*(self.ref_length-1)//2, 4224), dtype=torch.float32)
-        for idx_ij, coevo_cp in enumerate(coevo_agg):
-            coevo_couplings[idx_ij, :] = coevo_cp
-        return coevo_couplings#.transpose(-1, -2)
+        #coevo_couplings = torch.stack(tuple(coevo_agg), dim=0)
+        #return coevo_couplings.transpose(-1, -2)
+        coevo_couplings = torch.zeros((self.ref_length, self.ref_length, 4224), dtype=torch.float32)
+        # TODO: optimization for symmetric tensors
+        for (idx_i, idx_j), coevo_cp in coevo_agg:
+            coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
+        r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
+        mid = self.conv2d_41(r2s)
+        return r2s, self.softmax_func(0.5*(mid + mid.transpose(-1, -2)))
+
+    def loss_single_protein(self, pred, target):
+        l_idx = self.ref_seq_info['obs_mask']
+        if l_idx.shape[0] == pred.shape[2]:
+            pass
+        else:
+            # TODO: optimization?
+            pred = pred[:, :, l_idx, :][:, :, :, l_idx]
+            target = target[:, :, l_idx, :][:, :, :, l_idx]
+        return self.loss_func(pred, target)
+
+    def forward(self, msa_file):
+        pass
 

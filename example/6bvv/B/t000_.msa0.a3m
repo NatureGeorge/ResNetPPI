@@ -1,4 +1,4 @@
->{"pdb_id":"6bvv","struct_asym_id":"B","res_idxes":[[0,24]],"missing_segs":[]}
+>{"pdb_id":"6bvv","struct_asym_id":"B","obs_mask":"b'x\\x9c34\\xc4\\x0e\\x009\\x84\\x04\\x99'"}
 CLGRRVVQPGMFEDHPPTKKARVS
 >UniRef100_G5CPU8 Nonstructural protein W n=1 Tax=Hendra henipavirus TaxID=63330 RepID=G5CPU8_9MONO
 CLGRRVVQPGMFADYPPTKKARVL

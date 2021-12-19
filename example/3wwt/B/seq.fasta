@@ -1,2 +1,2 @@
->{"pdb_id":"3wwt","struct_asym_id":"B","res_idxes":[[0,107]],"missing_segs":[]}
+>{"pdb_id":"3wwt","struct_asym_id":"B","obs_mask":"b'x\\x9c34\\xa4\\x1b\\x00\\x00R\\x99\\x14|'"}
 HHMLETLINKIYTGPLGEELVQTLYLRIWAMEETPESLKILQMREDIRDQVLKMKTERWLRTLIRGEKTKLKDFQKRYEEVHPYLMKEKVEQVIMEEAWSLAAHIVQ

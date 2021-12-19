@@ -16,9 +16,8 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-16 11:24:33 am
+# @Last Modified: 2021-12-19 03:54:35 pm
 from ResNetPPI.coords6d import *
-import re
 from pathlib import Path
 import numpy as np
 import logging
@@ -95,41 +94,6 @@ def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = F
     return xyz
 
 
-ref_seq_pat = re.compile(r"[ARNDCQEGHILKMFPSTWYVX]+")
-aa_alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-X"), dtype='|S1').view(np.uint8)
-
-
-def aa2index(seq):
-    for i in range(aa_alphabet.shape[0]):
-        seq[seq == aa_alphabet[i]] = i
-    seq[seq > 21] = 21
-
-
-def load_pairwise_aln_from_a3m(path):
-    with Path(path).open('rt') as handle:
-        next(handle)
-        ref_seq = next(handle).rstrip()
-        assert bool(ref_seq_pat.fullmatch(ref_seq)), 'Unexpected seq!'
-        ref_seq_vec = np.array(list(ref_seq), dtype='|S1').view(np.uint8)
-        aa2index(ref_seq_vec)
-        for line in handle:
-            if line.startswith('>'):
-                continue
-            oth_seq = line.rstrip()
-            mask_insertion = np.array([False if aa.isupper() or aa == '-' else True for aa in oth_seq])
-            if mask_insertion.any():
-                ret_ref_seq_vec = np.full(mask_insertion.shape, 20, dtype=np.uint8)
-                ret_ref_seq_vec[np.where(~mask_insertion)] = ref_seq_vec
-                oth_seq_vec = np.array([(aa.upper() if ins else aa) for aa, ins in zip(oth_seq, mask_insertion)], dtype='|S1').view(np.uint8)
-                aa2index(oth_seq_vec)
-                yield np.asarray([ret_ref_seq_vec, oth_seq_vec])
-            else:
-                oth_seq_vec = np.array(list(oth_seq), dtype='|S1').view(np.uint8)
-                aa2index(oth_seq_vec)
-                # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
-                yield np.asarray([ref_seq_vec, oth_seq_vec])
-
-
 def gen_ref_msa_from_pairwise_aln(pw_msa):
     use_idx = np.where(pw_msa[0][0] != 20)[0]
     ref_msa = np.ones((len(pw_msa)+1, use_idx.shape[0]), dtype=np.uint8)
@@ -145,21 +109,40 @@ def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float
     idx1 = idx[1]
     assert v_max > v_min and size_bins > 0
     num_bins = round((v_max - v_min) / size_bins) + 1
-    bin_mat = np.zeros(mat.shape+(num_bins,), dtype=np.bool_)
+    bin_mat = np.zeros((num_bins,)+mat.shape, dtype=np.bool_)
     use_mat = mat[idx0, idx1]
     if non_contact_at_first:
-        bin_mat[idx0, idx1, 0] = 1
-        bin_mat[:, :, 0] = ~bin_mat[:, :, 0]
+        bin_mat[0, idx0, idx1] = 1
+        bin_mat[0, :, :] = ~bin_mat[0, :, :]
         for bin_i in range(1, num_bins):
-            bin_mat[idx0, idx1, bin_i] = np.where(
+            bin_mat[bin_i, idx0, idx1] = np.where(
                 (use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i), True, False)
     else:
-        bin_mat[idx0, idx1, num_bins-1] = 1
-        bin_mat[:, :, num_bins-1] = ~bin_mat[:, :, num_bins-1]
+        bin_mat[num_bins-1, idx0, idx1] = 1
+        bin_mat[num_bins-1, :, :] = ~bin_mat[num_bins-1, :, :]
         for bin_i in range(1, num_bins):
-            bin_mat[idx0, idx1, bin_i-1] = np.where(
+            bin_mat[bin_i-1, idx0, idx1] = np.where(
                 (use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i), True, False)
     return bin_mat.astype(np.float32)
+
+
+def get_label_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first: bool = True) -> np.ndarray:
+    idx0 = idx[0]
+    idx1 = idx[1]
+    assert v_max > v_min and size_bins > 0
+    num_bins = round((v_max - v_min) / size_bins) + 1
+    use_mat = mat[idx0, idx1]
+    if non_contact_at_first:
+        bin_mat = np.zeros(mat.shape, dtype=np.int64)
+        for bin_i in range(1, num_bins):
+            mask = np.where((use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i))[0]
+            bin_mat[idx0[mask], idx1[mask]] = bin_i
+    else:
+        bin_mat = np.full(mat.shape, num_bins-1, dtype=np.int64)
+        for bin_i in range(num_bins-1):
+            mask = np.where((use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i))[0]
+            bin_mat[idx0[mask], idx1[mask]] = bin_i
+    return bin_mat
 
 
 def get_bins_tex(size_bins: float, v_min: float, v_max: float, init='$[0,2) \cup [20,+\infty)$', non_contact_at_first:bool=True):
