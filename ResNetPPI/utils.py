@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-19 03:54:35 pm
+# @Last Modified: 2021-12-19 06:36:23 pm
 from ResNetPPI.coords6d import *
 from pathlib import Path
 import numpy as np
@@ -127,6 +127,17 @@ def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float
 
 
 def get_label_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first: bool = True) -> np.ndarray:
+    '''
+    >>> # NOTE: validation
+    >>> b = get_label_bin_map(idx_12, dist6d_12, 0.5, 0, 20)
+    >>> a = get_bin_map(idx_12, dist6d_12, 0.5, 0, 20).astype(np.int64)
+    >>> for bin in range(a.shape[0]):
+            cur = a[bin]
+            cur[cur == 1] = bin
+            a[bin] = cur
+    >>> a = a.sum(axis=0)
+    >>> assert (a == b).all()
+    '''
     idx0 = idx[0]
     idx1 = idx[1]
     assert v_max > v_min and size_bins > 0
@@ -139,9 +150,9 @@ def get_label_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min:
             bin_mat[idx0[mask], idx1[mask]] = bin_i
     else:
         bin_mat = np.full(mat.shape, num_bins-1, dtype=np.int64)
-        for bin_i in range(num_bins-1):
+        for bin_i in range(1, num_bins):
             mask = np.where((use_mat >= v_min + size_bins * (bin_i - 1)) & (use_mat < v_min + size_bins * bin_i))[0]
-            bin_mat[idx0[mask], idx1[mask]] = bin_i
+            bin_mat[idx0[mask], idx1[mask]] = bin_i-1
     return bin_mat
 
 

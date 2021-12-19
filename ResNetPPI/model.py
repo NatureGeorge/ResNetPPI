@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-19 03:19:01 pm
+# @Last Modified: 2021-12-19 08:08:41 pm
 import re
 import json
 import zlib
@@ -175,7 +175,7 @@ class ResNetPPI: # (pl.LightningModule)
         for (idx_i, idx_j), coevo_cp in coevo_agg:
             coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
-        mid = self.conv2d_41(r2s)
+        mid = self.conv2d_37(r2s)
         return r2s, self.softmax_func(0.5*(mid + mid.transpose(-1, -2)))
 
     def loss_single_protein(self, pred, target):
