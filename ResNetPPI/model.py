@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-19 08:08:41 pm
+# @Last Modified: 2021-12-20 05:18:24 pm
 import re
 import json
 import zlib
@@ -139,26 +139,27 @@ class ResNetPPI: # (pl.LightningModule)
         return torch.cat(tuple(self.gen_pw_embedding(pw_msa)))
 
     def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings):
+        msa_embeddings = msa_embeddings.transpose(0, 1)
         # Weights: $1 \times K$
         m_eff = iden_eff_weights.sum()
-        iden_eff_weights = iden_eff_weights.unsqueeze(0)
         # One-Body Term: $C \times L$ -> $C \times 1$
-        ## $(1 \times K) \times (K \times C \times L)$ -> $C \times L$
-        one_body_term = torch.matmul(iden_eff_weights, msa_embeddings.transpose(0,1))
-        one_body_term = one_body_term.reshape(one_body_term.shape[0], one_body_term.shape[2])/m_eff
-        # assert self.ref_length == one_body_term.shape[1]
+        ## $(1 \times K) \times (C \times K \times L)$ -> $C \times L$
+        ### one_body_term = torch.matmul(iden_eff_weights, msa_embeddings).squeeze(1).transpose(0, 1)/m_eff
+        one_body_term = torch.einsum('ckl,k->lc', msa_embeddings, iden_eff_weights)/m_eff
+        msa_embeddings = msa_embeddings.transpose(0, 2)  # $L \times K \times C$
         for idx_i in range(self.ref_length-1):
-            f_i = one_body_term[:, idx_i]
-            x_k_i = msa_embeddings[:, :, idx_i]
+            f_i = one_body_term[idx_i]
+            x_k_i = msa_embeddings[idx_i]
             for idx_j in range(idx_i+1, self.ref_length):
-                f_j = one_body_term[:, idx_j]
-                x_k_j = msa_embeddings[:, :, idx_j]
+                f_j = one_body_term[idx_j]
+                x_k_j = msa_embeddings[idx_j]
                 # Two-Body Term: $C \times C$
                 ## $(K \times C) \otimes (K \times C)$ -> $K \times C \times C$
-                x_k_ij = torch.einsum('ki,kj->kij', x_k_i, x_k_j)
-                ## $(1 \times K) \times (K \times C \times C)$ -> $C \times C$
-                two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij.transpose(0, 1))
-                two_body_term_ij = two_body_term_ij.reshape(two_body_term_ij.shape[0], two_body_term_ij.shape[2])/m_eff
+                x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j)
+                ## $(1 \times K) \times (C \times K \times C)$ -> $C \times C$
+                ### two_body_term_ij = torch.einsum('ikj,k->ji', x_k_ij, iden_eff_weights).transpose(0, 1)/m_eff
+                two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
+                ### FALSE: two_body_term_ij = torch.einsum('ki,kj,k->ij', x_k_i, x_k_j, iden_eff_weights)/m_eff
                 ## $C + C + C^2$
                 yield (idx_i, idx_j), torch.cat((f_i, f_j, two_body_term_ij.flatten()))
 
@@ -172,7 +173,7 @@ class ResNetPPI: # (pl.LightningModule)
         #return coevo_couplings.transpose(-1, -2)
         coevo_couplings = torch.zeros((self.ref_length, self.ref_length, 4224), dtype=torch.float32)
         # TODO: optimization for symmetric tensors
-        for (idx_i, idx_j), coevo_cp in coevo_agg:
+        for (idx_i, idx_j), coevo_cp in coevo_agg:  # tqdm(coevo_agg, total=self.ref_length*(self.ref_length-1)//2):
             coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
         mid = self.conv2d_37(r2s)
