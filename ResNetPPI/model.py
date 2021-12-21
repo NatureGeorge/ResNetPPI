@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-20 05:18:24 pm
+# @Last Modified: 2021-12-21 01:16:34 pm
 import re
 import json
 import zlib
@@ -142,6 +142,7 @@ class ResNetPPI: # (pl.LightningModule)
         msa_embeddings = msa_embeddings.transpose(0, 1)
         # Weights: $1 \times K$
         m_eff = iden_eff_weights.sum()
+        # ? with torch.no_grad():
         # One-Body Term: $C \times L$ -> $C \times 1$
         ## $(1 \times K) \times (C \times K \times L)$ -> $C \times L$
         ### one_body_term = torch.matmul(iden_eff_weights, msa_embeddings).squeeze(1).transpose(0, 1)/m_eff
@@ -158,8 +159,9 @@ class ResNetPPI: # (pl.LightningModule)
                 x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j)
                 ## $(1 \times K) \times (C \times K \times C)$ -> $C \times C$
                 ### two_body_term_ij = torch.einsum('ikj,k->ji', x_k_ij, iden_eff_weights).transpose(0, 1)/m_eff
-                two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
-                ### FALSE: two_body_term_ij = torch.einsum('ki,kj,k->ij', x_k_i, x_k_j, iden_eff_weights)/m_eff
+                ### two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
+                two_body_term_ij = (iden_eff_weights @ x_k_ij) / m_eff
+                del x_k_ij
                 ## $C + C + C^2$
                 yield (idx_i, idx_j), torch.cat((f_i, f_j, two_body_term_ij.flatten()))
 
