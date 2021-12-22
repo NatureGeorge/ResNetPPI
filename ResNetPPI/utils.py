@@ -16,8 +16,11 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-19 06:36:23 pm
+# @Last Modified: 2021-12-22 05:06:55 pm
 from ResNetPPI.coords6d import *
+import re
+import json
+import zlib
 from pathlib import Path
 import numpy as np
 import logging
@@ -92,6 +95,44 @@ def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = F
         return
     assert xyz.shape[0] == chain_obj.length(), "Missing anchor atoms!"
     return xyz
+
+
+REF_SEQ_PAT = re.compile(r"[ARNDCQEGHILKMFPSTWYVX]+")
+AA_ALPHABET = np.array(list("ARNDCQEGHILKMFPSTWYV-X"), dtype='|S1').view(np.uint8)
+
+
+def aa2index(seq):
+    for i in range(AA_ALPHABET.shape[0]):
+        seq[seq == AA_ALPHABET[i]] = i
+    seq[seq > 21] = 21
+
+
+def load_pairwise_aln_from_a3m(path):
+    with Path(path).open('rt') as handle:
+        ref_seq_info = json.loads(next(handle)[1:])
+        ref_seq_info['obs_mask'] = np.where(np.array(list(zlib.decompress(eval(
+                ref_seq_info['obs_mask'])).decode('utf-8')), dtype=np.uint8))[0]
+        yield ref_seq_info
+        ref_seq = next(handle).rstrip()
+        assert bool(REF_SEQ_PAT.fullmatch(ref_seq)), 'Unexpected seq!'
+        ref_seq_vec = np.array(list(ref_seq), dtype='|S1').view(np.uint8)
+        aa2index(ref_seq_vec)
+        for line in handle:
+            if line.startswith('>'):
+                continue
+            oth_seq = line.rstrip()
+            mask_insertion = np.array([False if aa.isupper() or aa == '-' else True for aa in oth_seq])
+            if mask_insertion.any():
+                ret_ref_seq_vec = np.full(mask_insertion.shape, 20, dtype=np.uint8)
+                ret_ref_seq_vec[np.where(~mask_insertion)] = ref_seq_vec
+                oth_seq_vec = np.array([(aa.upper() if ins else aa) for aa, ins in zip(oth_seq, mask_insertion)], dtype='|S1').view(np.uint8)
+                aa2index(oth_seq_vec)
+                yield np.asarray([ret_ref_seq_vec, oth_seq_vec])
+            else:
+                oth_seq_vec = np.array(list(oth_seq), dtype='|S1').view(np.uint8)
+                aa2index(oth_seq_vec)
+                # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
+                yield np.asarray([ref_seq_vec, oth_seq_vec])
 
 
 def gen_ref_msa_from_pairwise_aln(pw_msa):
