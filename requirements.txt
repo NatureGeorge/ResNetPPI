@@ -4,3 +4,6 @@ scipy
 pytorch-lightning
 numba
 gemmi
+orjson
+tqdm
+pandas

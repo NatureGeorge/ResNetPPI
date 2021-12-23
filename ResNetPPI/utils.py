@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-22 05:06:55 pm
+# @Last Modified: 2021-12-23 03:39:17 pm
 from ResNetPPI.coords6d import *
 import re
 import json
@@ -26,15 +26,11 @@ import numpy as np
 import logging
 import numba
 import scipy.special
-from collections import namedtuple
 
 CONSOLE = logging.StreamHandler()
 CONSOLE.setLevel(logging.WARNING)
 LOGGER = logging.getLogger('ZZFLog')
 LOGGER.addHandler(CONSOLE)
-
-PDB_CHAIN = namedtuple('PDB_CHAIN', 'pdb_id entity_id struct_asym_id chain_id')
-PDB_BINARY_CHAIN = namedtuple('PDB_BINARY_CHAIN', 'chain_1 chain_2')
 
 
 def gen_res_idx_range(obs_index):
@@ -50,16 +46,6 @@ def get_res_idx_range(obs_index):
     res_idxes, missing_segs = zip(*gen_res_idx_range(obs_index))
     missing_segs = missing_segs[1:]
     return res_idxes, missing_segs
-
-
-def prepare_input_seq_and_folder(folder, seq_header, seq):
-    fasta_file = Path(folder)/'seq.fasta'
-    fasta_file.parent.mkdir(parents=True, exist_ok=True)
-    (fasta_file.parent/'log').mkdir(parents=True, exist_ok=True)
-    with fasta_file.open('wt') as handle:
-        handle.write(f'>{seq_header}\n')
-        handle.write(seq)
-    return fasta_file
 
 
 def get_real_or_virtual_CB(res, gly_ca: bool = False):

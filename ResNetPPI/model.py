@@ -16,11 +16,12 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-22 05:35:33 pm
+# @Last Modified: 2021-12-22 09:06:45 pm
 import numpy as np
 import scipy.spatial
 import torch
 from torch import nn
+from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import (identity_score,
@@ -57,9 +58,9 @@ def get_eff_weights(pw_msa):
     return iden_eff_weights.astype(np.float32)
 
 
-class ResNetPPI:#(pl.LightningModule):
+class ResNetPPI(pl.LightningModule):
     def __init__(self, encode_dim: int = ENCODE_DIM):
-        #super().__init__()
+        super().__init__()
         self.resnet1d = ResNet1D(encode_dim, [8])
         self.resnet2d = ResNet2D(4224, [4]*18)
         self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False)
@@ -148,10 +149,9 @@ class ResNetPPI:#(pl.LightningModule):
         ref_seq_info = next(loading_a3m)
         pw_msa = tuple(loading_a3m)
         pred_dist6d_1 = self.forward_single_protein(pw_msa)
-        print(pred_dist6d_1.shape)
         l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)
-        print('train_loss', loss)
+        self.log('train_loss', loss)
         return loss
         
 
@@ -165,7 +165,10 @@ class ResNetPPI:#(pl.LightningModule):
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)
         self.log('val_loss', loss)
 
-    def forward(self, x):
-        # TEMP
-        return self.forward_single_protein(x)
+    def forward(self, msa_file):
+        # NOTE: for prediction/inference actions
+        loading_a3m = load_pairwise_aln_from_a3m(msa_file)
+        next(loading_a3m)
+        pw_msa = tuple(loading_a3m)
+        return self.forward_single_protein(pw_msa)
 
