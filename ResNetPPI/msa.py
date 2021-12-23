@@ -16,17 +16,18 @@
 # @Filename: msa.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-23 03:45:02 pm
+# @Last Modified: 2021-12-23 07:06:22 pm
 import os
+import datetime
 import argparse
 import zlib
 from pathlib import Path
 from collections import namedtuple
+import joblib
 import numpy as np
 import gemmi
 from pandas import read_csv
 import orjson as json
-from tqdm import tqdm
 
 
 MODEL_ID = 0
@@ -47,24 +48,25 @@ def prepare_input_seq_and_folder(folder, seq_header, seq):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("pdb_list", type=str, help="PDBlist file.")
-    parser.add_argument("pdb_dir", type=str, help="PDB file directory.")
-    parser.add_argument("sc_dir", type=str, help="make_msa.sh directory.", required=False, default="./scripts/")
-    parser.add_argument("seqdb_dir", type=str, help="sequence database directory.", required=False, default="./seqs_database/UniRef30_2020_06/UniRef30_2020_06")
     parser.add_argument("out_dir", type=str, help="output directory.")
-    parser.add_argument('-n_cpu', type=int, required=False, dest='n_cpu', default=2, help='Number of CPU to use when running `make_msa.sh`.')
-    parser.add_argument('-n_mem', type=int, required=False, dest='n_mem', default=8, help='Size of memory to use when running `make_msa.sh`.')
+    parser.add_argument("-pdb_dir", type=str, required=False, dest='pdb_dir', default="./pdb", help="PDB file directory.")
+    parser.add_argument("-sc_dir", type=str, required=False, dest='sc_dir', default="./scripts", help="make_msa.sh directory.")
+    parser.add_argument("-seqdb_dir", type=str, required=False, dest='seqdb_dir', default="./seqs_database/UniRef30_2020_06/UniRef30_2020_06", help="sequence database directory.")
+    parser.add_argument('-n_cpu', type=int, required=False, dest='n_cpu', default=2, help='number of CPU to use when running `make_msa.sh`.')
+    parser.add_argument('-n_mem', type=int, required=False, dest='n_mem', default=8, help='size of memory to use when running `make_msa.sh`.')
     args = parser.parse_args()
-    dataset = read_csv(args.pdb_list, dtype=str, keep_default_na=False)
-    for record in tqdm(dataset.itertuples(index=False), total=dataset.shape[0]):
+    dataset = read_csv(args.pdb_list, dtype=str, keep_default_na=False, nrows=10)
+    for record in dataset.itertuples(index=False):
         pdb_chain_1 = PDB_CHAIN(record.pdb_id, record.entity_id_1, record.struct_asym_id_1, record.chain_id_1)
         pdb_chain_2 = PDB_CHAIN(record.pdb_id, record.entity_id_2, record.struct_asym_id_2, record.chain_id_2)
         pdb_binary_int = PDB_BINARY_CHAIN(pdb_chain_1, pdb_chain_2)
         gemmi_obj = None
+        msa_cmds = []
         for chain in pdb_binary_int:
             chain_wdir = Path(args.out_dir)/f'{record.pdb_id}/{chain.struct_asym_id}'
             if not chain_wdir.exists():
                 if gemmi_obj is None:
-                    gemmi_obj = gemmi.read_structure(args.pdb_dir/f"{record.pdb_id}.cif.gz")
+                    gemmi_obj = gemmi.read_structure(Path(args.pdb_dir)/f"{record.pdb_id}.cif.gz")
                 chain_obj = gemmi_obj[MODEL_ID].get_subchain(chain.struct_asym_id) # chain_obj.make_one_letter_sequence()
                 entity_seq = gemmi.one_letter_code(gemmi_obj.get_entity(chain.entity_id).full_sequence)
                 res_i_beg = chain_obj[0].label_seq
@@ -78,5 +80,8 @@ if __name__ == '__main__':
                         obs_mask=str(zlib.compress(bytes(''.join(map(str, obs_mask)), encoding='utf-8'))))
                     ).decode('utf-8'),
                     entity_seq[res_i_beg-1: res_i_end])
-            msa_cmd = f"{args.sc_dir}make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr"
-            os.system(msa_cmd)
+            if not (chain_wdir/'t000_.msa0.a3m').exists():
+                msa_cmds.append(f"{args.sc_dir}/make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr")
+                print(f"[{datetime.datetime.now()}] would run: {msa_cmds[-1].split('>')[0]}")
+        if msa_cmds:
+            joblib.Parallel(n_jobs=len(msa_cmds))(joblib.delayed(os.system)(msa_cmd_i) for msa_cmd_i in msa_cmds)

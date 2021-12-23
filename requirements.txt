@@ -4,6 +4,6 @@ scipy
 pytorch-lightning
 numba
 gemmi
+joblib
 orjson
-tqdm
 pandas

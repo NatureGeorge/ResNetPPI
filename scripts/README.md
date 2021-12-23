@@ -1,6 +1,6 @@
 # Usage
 
-make sure the script has execution permission: `chmod +x demo.sh`
+Make sure the scripts have execution permission: `chmod +x demo.sh`.
 
 ## `rcsb_batch_download.sh`
 
