@@ -16,7 +16,7 @@
 # @Filename: net.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-19 02:08:31 pm
+# @Last Modified: 2021-12-24 03:12:51 pm
 import torch.nn as nn
 
 
@@ -76,10 +76,10 @@ class ResNet1DLayer(ResNetLayerBase):
 
 
 class ResNet2DLayer(ResNetLayerBase):
-    def __init__(self, out_channels, kernel_size, dilation, n_layer, **kwargs):
+    def __init__(self, out_channels, kernel_size, dilations, **kwargs):
         super().__init__()
         self.blocks = nn.Sequential(
-            *[ResNet2DResidualBlock(out_channels, out_channels, kernel_size, dilation, **kwargs) for _ in range(n_layer)]
+            *[ResNet2DResidualBlock(out_channels, out_channels, kernel_size, dilation, **kwargs) for dilation in dilations]
         )
 
 
@@ -103,7 +103,7 @@ class ResNet1D(nn.Module):
 
 
 class ResNet2D(nn.Module):
-    def __init__(self, in_channels, deepths, kernel_size=3, channel_size=96, dilation=2, **kwargs):
+    def __init__(self, in_channels, dilations_group, kernel_size=3, channel_size=96, **kwargs):
         super().__init__()
         self.in_gate = nn.Sequential(
             nn.Conv2d(in_channels, channel_size, kernel_size=kernel_size, padding=1, bias=False),  # NOTE: padding?
@@ -111,7 +111,7 @@ class ResNet2D(nn.Module):
             nn.ELU(inplace=True),
         )
         self.blocks = nn.ModuleList([
-            *[ResNet2DLayer(channel_size, kernel_size, dilation, n_layer=n, **kwargs) for n in deepths]
+            *[ResNet2DLayer(channel_size, kernel_size, dilations, **kwargs) for dilations in dilations_group]
         ])
         #self.out_gate = nn.Sequential(
         #    nn.Conv2d(channel_size, out_channels, kernel_size=kernel_size, padding=1, bias=False),

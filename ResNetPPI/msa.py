@@ -16,7 +16,7 @@
 # @Filename: msa.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-23 07:06:22 pm
+# @Last Modified: 2021-12-24 10:08:52 am
 import os
 import datetime
 import argparse
@@ -45,6 +45,40 @@ def prepare_input_seq_and_folder(folder, seq_header, seq):
     return fasta_file
 
 
+def running_msa_pipeline(args):
+    dataframe = read_csv(args.pdb_list, dtype=str, keep_default_na=False, chunksize=300)
+    for dataset in dataframe:
+        msa_cmds = []
+        for record in dataset.itertuples(index=False):
+            pdb_chain_1 = PDB_CHAIN(record.pdb_id, record.entity_id_1, record.struct_asym_id_1, record.chain_id_1)
+            pdb_chain_2 = PDB_CHAIN(record.pdb_id, record.entity_id_2, record.struct_asym_id_2, record.chain_id_2)
+            pdb_binary_int = PDB_BINARY_CHAIN(pdb_chain_1, pdb_chain_2)
+            gemmi_obj = None
+            for chain in pdb_binary_int:
+                chain_wdir = Path(args.out_dir)/f'{record.pdb_id}/{chain.struct_asym_id}'
+                if not chain_wdir.exists():
+                    if gemmi_obj is None:
+                        gemmi_obj = gemmi.read_structure(str(Path(args.pdb_dir)/f"{record.pdb_id}.cif.gz"))
+                    chain_obj = gemmi_obj[MODEL_ID].get_subchain(chain.struct_asym_id) # chain_obj.make_one_letter_sequence()
+                    entity_seq = gemmi.one_letter_code(gemmi_obj.get_entity(chain.entity_id).full_sequence)
+                    res_i_beg = chain_obj[0].label_seq
+                    res_i_end = chain_obj[-1].label_seq
+                    obs_mask = np.zeros(res_i_end-res_i_beg+1, dtype=np.uint8)
+                    obs_mask[[(res_i.label_seq-res_i_beg) for res_i in chain_obj]] = 1
+                    prepare_input_seq_and_folder(chain_wdir,
+                        json.dumps(dict(
+                            pdb_id=record.pdb_id,
+                            struct_asym_id=chain.struct_asym_id,
+                            obs_mask=str(zlib.compress(bytes(''.join(map(str, obs_mask)), encoding='utf-8'))))
+                        ).decode('utf-8'),
+                        entity_seq[res_i_beg-1: res_i_end])
+                if not (chain_wdir/'t000_.msa0.a3m').exists():
+                    msa_cmds.append(f"{args.sc_dir}/make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr")
+        if msa_cmds:
+            print(f"[{datetime.datetime.now()}] would run {len(msa_cmds)} cmds")
+            joblib.Parallel(n_jobs=args.n_job)(joblib.delayed(os.system)(msa_cmd_i) for msa_cmd_i in msa_cmds)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("pdb_list", type=str, help="PDBlist file.")
@@ -54,34 +88,6 @@ if __name__ == '__main__':
     parser.add_argument("-seqdb_dir", type=str, required=False, dest='seqdb_dir', default="./seqs_database/UniRef30_2020_06/UniRef30_2020_06", help="sequence database directory.")
     parser.add_argument('-n_cpu', type=int, required=False, dest='n_cpu', default=2, help='number of CPU to use when running `make_msa.sh`.')
     parser.add_argument('-n_mem', type=int, required=False, dest='n_mem', default=8, help='size of memory to use when running `make_msa.sh`.')
-    args = parser.parse_args()
-    dataset = read_csv(args.pdb_list, dtype=str, keep_default_na=False, nrows=10)
-    for record in dataset.itertuples(index=False):
-        pdb_chain_1 = PDB_CHAIN(record.pdb_id, record.entity_id_1, record.struct_asym_id_1, record.chain_id_1)
-        pdb_chain_2 = PDB_CHAIN(record.pdb_id, record.entity_id_2, record.struct_asym_id_2, record.chain_id_2)
-        pdb_binary_int = PDB_BINARY_CHAIN(pdb_chain_1, pdb_chain_2)
-        gemmi_obj = None
-        msa_cmds = []
-        for chain in pdb_binary_int:
-            chain_wdir = Path(args.out_dir)/f'{record.pdb_id}/{chain.struct_asym_id}'
-            if not chain_wdir.exists():
-                if gemmi_obj is None:
-                    gemmi_obj = gemmi.read_structure(Path(args.pdb_dir)/f"{record.pdb_id}.cif.gz")
-                chain_obj = gemmi_obj[MODEL_ID].get_subchain(chain.struct_asym_id) # chain_obj.make_one_letter_sequence()
-                entity_seq = gemmi.one_letter_code(gemmi_obj.get_entity(chain.entity_id).full_sequence)
-                res_i_beg = chain_obj[0].label_seq
-                res_i_end = chain_obj[-1].label_seq
-                obs_mask = np.zeros(res_i_end-res_i_beg+1, dtype=np.uint8)
-                obs_mask[[(res_i.label_seq-res_i_beg) for res_i in chain_obj]] = 1
-                prepare_input_seq_and_folder(chain_wdir,
-                    json.dumps(dict(
-                        pdb_id=record.pdb_id,
-                        struct_asym_id=chain.struct_asym_id,
-                        obs_mask=str(zlib.compress(bytes(''.join(map(str, obs_mask)), encoding='utf-8'))))
-                    ).decode('utf-8'),
-                    entity_seq[res_i_beg-1: res_i_end])
-            if not (chain_wdir/'t000_.msa0.a3m').exists():
-                msa_cmds.append(f"{args.sc_dir}/make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr")
-                print(f"[{datetime.datetime.now()}] would run: {msa_cmds[-1].split('>')[0]}")
-        if msa_cmds:
-            joblib.Parallel(n_jobs=len(msa_cmds))(joblib.delayed(os.system)(msa_cmd_i) for msa_cmd_i in msa_cmds)
+    parser.add_argument('-n_job', type=int, required=False, dest='n_job', default=2, help='the maximum number of concurrently running jobs (joblib).')
+    running_msa_pipeline(parser.parse_args())
+

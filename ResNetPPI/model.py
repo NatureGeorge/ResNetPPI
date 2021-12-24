@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-22 09:06:45 pm
+# @Last Modified: 2021-12-24 03:39:35 pm
 import numpy as np
 import scipy.spatial
 import torch
@@ -62,7 +62,7 @@ class ResNetPPI(pl.LightningModule):
     def __init__(self, encode_dim: int = ENCODE_DIM):
         super().__init__()
         self.resnet1d = ResNet1D(encode_dim, [8])
-        self.resnet2d = ResNet2D(4224, [4]*18)
+        self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*18)
         self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False)
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False)
         self.softmax_func = nn.Softmax(dim=1)
@@ -131,8 +131,11 @@ class ResNetPPI(pl.LightningModule):
         for (idx_i, idx_j), coevo_cp in coevo_agg:  # tqdm(coevo_agg, total=ref_length*(ref_length-1)//2):
             coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
-        mid = self.conv2d_37(r2s)
-        return self.softmax_func(0.5*(mid + mid.transpose(-1, -2)))
+        print(r2s.shape)
+        return self.softmax_func(
+            self.conv2d_37(
+                0.5*(r2s + r2s.transpose(-1, -2))
+            ))
 
     def loss_single_protein(self, l_idx, pred, target):
         if l_idx.shape[0] == pred.shape[2]:
@@ -140,7 +143,6 @@ class ResNetPPI(pl.LightningModule):
         else:
             # TODO: optimization?
             pred = pred[:, :, l_idx, :][:, :, :, l_idx]
-            target = target[:, :, l_idx, :][:, :, :, l_idx]
         return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):
