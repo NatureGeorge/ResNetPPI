@@ -16,7 +16,8 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-25 04:42:11 pm
+# @Last Modified: 2021-12-25 09:15:54 pm
+from collections import defaultdict
 import numpy as np
 import scipy.spatial
 import torch
@@ -26,6 +27,7 @@ import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import (identity_score,
                              load_pairwise_aln_from_a3m,
+                             sample_pairwise_aln,
                              gen_ref_msa_from_pairwise_aln)
 
 
@@ -59,7 +61,7 @@ def get_eff_weights(pw_msa):
 
 
 class ResNetPPI(pl.LightningModule):
-    def __init__(self, encode_dim: int = ENCODE_DIM):
+    def __init__(self, encode_dim: int = ENCODE_DIM, pw_embedding_by_group: bool = True):
         super().__init__()
         self.resnet1d = ResNet1D(encode_dim, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*18)
@@ -67,6 +69,7 @@ class ResNetPPI(pl.LightningModule):
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
+        self.gen_pw_embedding = self.gen_pw_embedding_group if pw_embedding_by_group else self.gen_pw_embedding_1by1
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
@@ -80,7 +83,7 @@ class ResNetPPI(pl.LightningModule):
     def pw_encoding(self, aln: np.ndarray):
         return self.onehot_encoding(aln).reshape(ENCODE_DIM, -1)
 
-    def gen_pw_embedding(self, pw_msa):
+    def gen_pw_embedding_1by1(self, pw_msa):
         ref_length = (pw_msa[0][0] != 20).sum()
         for pw_aln in pw_msa:
             # $1 \times C \times L_k$
@@ -90,7 +93,6 @@ class ResNetPPI(pl.LightningModule):
             else:
                 yield msa_embedding
 
-    """
     def gen_pw_embedding_group(self, pw_msa):
         # NOTE: the order of homologous sequences would change
         ref_length = (pw_msa[0][0] != 20).sum()
@@ -105,17 +107,19 @@ class ResNetPPI(pl.LightningModule):
             else:
                 for pw_idx_idx, pw_idx in enumerate(group):
                     yield msa_embedding[[pw_idx_idx]][:, :, pw_msa[pw_idx][0] != 20]  # TODO: optimize
-    """
     
     def msa_embedding(self, pw_msa):
         return torch.cat(tuple(self.gen_pw_embedding(pw_msa)))
 
-    def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings, max_k: int = 1000):
+    def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings):
+        ref_length = msa_embeddings.shape[2]
+        """
         cur_k, _, ref_length = msa_embeddings.shape
         if cur_k > max_k:
             use_indices = torch.randperm(cur_k)[:max_k]
             iden_eff_weights = iden_eff_weights[use_indices]
             msa_embeddings = msa_embeddings[use_indices]
+        """
         msa_embeddings = msa_embeddings.transpose(0, 1)
         # Weights: $1 \times K$
         m_eff = iden_eff_weights.sum()
@@ -153,10 +157,8 @@ class ResNetPPI(pl.LightningModule):
         for (idx_i, idx_j), coevo_cp in coevo_agg:  # tqdm(coevo_agg, total=ref_length*(ref_length-1)//2):
             coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
-        return self.softmax_func(
-            self.conv2d_37(
-                0.5*(r2s + r2s.transpose(-1, -2))
-            ))
+        mid = self.conv2d_37(r2s)
+        return self.softmax_func(0.5*(mid + mid.transpose(-1, -2)))
 
     def loss_single_protein(self, l_idx, pred, target):
         if l_idx.shape[0] == pred.shape[2]:
@@ -170,7 +172,7 @@ class ResNetPPI(pl.LightningModule):
         msa_file, label_dist6d_1 = train_batch
         loading_a3m = load_pairwise_aln_from_a3m(msa_file)
         ref_seq_info = next(loading_a3m)
-        pw_msa = tuple(loading_a3m)
+        pw_msa = sample_pairwise_aln(tuple(loading_a3m))
         pred_dist6d_1 = self.forward_single_protein(pw_msa)
         l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)
@@ -182,7 +184,7 @@ class ResNetPPI(pl.LightningModule):
         msa_file, label_dist6d_1 = val_batch
         loading_a3m = load_pairwise_aln_from_a3m(msa_file)
         ref_seq_info = next(loading_a3m)
-        pw_msa = tuple(loading_a3m)
+        pw_msa = sample_pairwise_aln(tuple(loading_a3m))
         pred_dist6d_1 = self.forward_single_protein(pw_msa)
         l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)

@@ -16,11 +16,12 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-25 03:57:50 pm
+# @Last Modified: 2021-12-25 07:58:36 pm
 from ResNetPPI.coords6d import *
 import re
 import json
 import zlib
+import random
 from pathlib import Path
 import numpy as np
 import logging
@@ -131,12 +132,12 @@ def gen_ref_msa_from_pairwise_aln(pw_msa):
     return ref_msa
 
 
-"""
-def sample_pairwise_aln(pw_msa, cutoff: int = 1000):
-    if len(pw_msa) <= cutoff:
+def sample_pairwise_aln(pw_msa, max_k: int = 1000):
+    cur_k = len(pw_msa)
+    assert cur_k > 0
+    if cur_k <= max_k:
         return pw_msa
-    return random.sample(pw_msa, cutoff)
-"""
+    return random.sample(pw_msa, max_k)
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:

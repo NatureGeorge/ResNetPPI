@@ -1,0 +1,156 @@
+@article{Xu2019PNAS,
+  author    = {Xu, Jinbo},
+  title     = {{Distance-based protein folding powered by deep learning}},
+  volume    = {116},
+  number    = {34},
+  pages     = {16856--16865},
+  year      = {2019},
+  doi       = {10.1073/pnas.1821309116},
+  publisher = {National Academy of Sciences},
+  abstract  = {Accurate description of protein structure and function is a fundamental step toward understanding biological life and highly relevant in the development of therapeutics. Although greatly improved, experimental protein structure determination is still low-throughput and costly, especially for membrane proteins. As such, computational structure prediction is often resorted. Predicting the structure of a protein without similar structures in the Protein Data Bank is very challenging and usually needs a large amount of computing power. This paper shows that by using a powerful deep learning technique, even with only a personal computer we can predict new folds much more accurately than ever before. This method also works well on membrane protein folding.Direct coupling analysis (DCA) for protein folding has made very good progress, but it is not effective for proteins that lack many sequence homologs, even coupled with time-consuming conformation sampling with fragments. We show that we can accurately predict interresidue distance distribution of a protein by deep learning, even for proteins with \~{}60 sequence homologs. Using only the geometric constraints given by the resulting distance matrix we may construct 3D models without involving extensive conformation sampling. Our method successfully folded 21 of the 37 CASP12 hard targets with a median family size of 58 effective sequence homologs within 4 h on a Linux computer of 20 central processing units. In contrast, DCA-predicted contacts cannot be used to fold any of these hard targets in the absence of extensive conformation sampling, and the best CASP12 group folded only 11 of them by integrating DCA-predicted contacts into fragment-based conformation sampling. Rigorous experimental validation in CASP13 shows that our distance-based folding server successfully folded 17 of 32 hard targets (with a median family size of 36 sequence homologs) and obtained 70\% precision on the top L/5 long-range predicted contacts. The latest experimental validation in CAMEO shows that our server predicted correct folds for 2 membrane proteins while all of the other servers failed. These results demonstrate that it is now feasible to predict correct fold for many more proteins lack of similar structures in the Protein Data Bank even on a personal computer.},
+  issn      = {0027-8424},
+  url       = {https://www.pnas.org/content/116/34/16856},
+  eprint    = {https://www.pnas.org/content/116/34/16856.full.pdf},
+  journal   = {Proceedings of the National Academy of Sciences}
+}
+@article{DavidJones2018,
+  author   = {Jones, David T and Kandathil, Shaun M},
+  title    = {{High precision in protein contact prediction using fully convolutional neural networks and minimal sequence features}},
+  journal  = {Bioinformatics},
+  volume   = {34},
+  number   = {19},
+  pages    = {3308-3315},
+  year     = {2018},
+  month    = {04},
+  abstract = {{In addition to substitution frequency data from protein sequence alignments, many state-of-the-art methods for contact prediction rely on additional sources of information, or features, of protein sequences in order to predict residue–residue contacts, such as solvent accessibility, predicted secondary structure, and scores from other contact prediction methods. It is unclear how much of this information is needed to achieve state-of-the-art results. Here, we show that using deep neural network models, simple alignment statistics contain sufficient information to achieve state-of-the-art precision. Our prediction method, DeepCov, uses fully convolutional neural networks operating on amino-acid pair frequency or covariance data derived directly from sequence alignments, without using global statistical methods such as sparse inverse covariance or pseudolikelihood estimation.Comparisons against CCMpred and MetaPSICOV2 show that using pairwise covariance data calculated from raw alignments as input allows us to match or exceed the performance of both of these methods. Almost all of the achieved precision is obtained when considering relatively local windows (around 15 residues) around any member of a given residue pairing; larger window sizes have comparable performance. Assessment on a set of shallow sequence alignments (fewer than 160 effective sequences) indicates that the new method is substantially more precise than CCMpred and MetaPSICOV2 in this regime, suggesting that improved precision is attainable on smaller sequence families. Overall, the performance of DeepCov is competitive with the state of the art, and our results demonstrate that global models, which employ features from all parts of the input alignment when predicting individual contacts, are not strictly needed in order to attain precise contact predictions.DeepCov is freely available at https://github.com/psipred/DeepCov.Supplementary data are available at Bioinformatics online.}},
+  issn     = {1367-4803},
+  doi      = {10.1093/bioinformatics/bty341},
+  url      = {https://doi.org/10.1093/bioinformatics/bty341},
+  eprint   = {https://academic.oup.com/bioinformatics/article-pdf/34/19/3308/25839647/bty341.pdf}
+}
+@article{AlphaFold1,
+  author   = {Senior, Andrew W.
+              and Evans, Richard
+              and Jumper, John
+              and Kirkpatrick, James
+              and Sifre, Laurent
+              and Green, Tim
+              and Qin, Chongli
+              and {\v{Z}}{\'i}dek, Augustin
+              and Nelson, Alexander W. R.
+              and Bridgland, Alex
+              and Penedones, Hugo
+              and Petersen, Stig
+              and Simonyan, Karen
+              and Crossan, Steve
+              and Kohli, Pushmeet
+              and Jones, David T.
+              and Silver, David
+              and Kavukcuoglu, Koray
+              and Hassabis, Demis},
+  title    = {Improved protein structure prediction using potentials from deep learning},
+  journal  = {Nature},
+  year     = {2020},
+  month    = {Jan},
+  day      = {01},
+  volume   = {577},
+  number   = {7792},
+  pages    = {706-710},
+  abstract = {Protein structure prediction can be used to determine the three-dimensional shape of a protein from its amino acid sequence1. This problem is of fundamental importance as the structure of a protein largely determines its function2; however, protein structures can be difficult to determine experimentally. Considerable progress has recently been made by leveraging genetic information. It is possible to infer which amino acid residues are in contact by analysing covariation in homologous sequences, which aids in the prediction of protein structures3. Here we show that we can train a neural network to make accurate predictions of the distances between pairs of residues, which convey more information about the structure than contact predictions. Using this information, we construct a potential of mean force4 that can accurately describe the shape of a protein. We find that the resulting potential can be optimized by a simple gradient descent algorithm to generate structures without complex sampling procedures. The resulting system, named AlphaFold, achieves high accuracy, even for sequences with fewer homologous sequences. In the recent Critical Assessment of Protein Structure Prediction5 (CASP13)---a blind assessment of the state of the field---AlphaFold created high-accuracy structures (with template modelling (TM) scores6 of 0.7 or higher) for 24 out of 43 free modelling domains, whereas the next best method, which used sampling and contact information, achieved such accuracy for only 14 out of 43 domains. AlphaFold represents a considerable advance in protein-structure prediction. We expect this increased accuracy to enable insights into the function and malfunction of proteins, especially in cases for which no structures for homologous proteins have been experimentally determined7.},
+  issn     = {1476-4687},
+  doi      = {10.1038/s41586-019-1923-7},
+  url      = {https://doi.org/10.1038/s41586-019-1923-7}
+}
+@article{trRosetta,
+  author    = {Yang, Jianyi and Anishchenko, Ivan and Park, Hahnbeom and Peng, Zhenling and Ovchinnikov, Sergey and Baker, David},
+  title     = {{Improved protein structure prediction using predicted interresidue orientations}},
+  volume    = {117},
+  number    = {3},
+  pages     = {1496--1503},
+  year      = {2020},
+  doi       = {10.1073/pnas.1914677117},
+  publisher = {National Academy of Sciences},
+  abstract  = {Protein structure prediction is a longstanding challenge in computational biology. Through extension of deep learning-based prediction to interresidue orientations in addition to distances, and the development of a constrained optimization by Rosetta, we show that more accurate models can be generated. Results on a set of 18 de novo-designed proteins suggests the proposed method should be directly applicable to current challenges in de novo protein design.The prediction of interresidue contacts and distances from coevolutionary data using deep learning has considerably advanced protein structure prediction. Here, we build on these advances by developing a deep residual network for predicting interresidue orientations, in addition to distances, and a Rosetta-constrained energy-minimization protocol for rapidly and accurately generating structure models guided by these restraints. In benchmark tests on 13th Community-Wide Experiment on the Critical Assessment of Techniques for Protein Structure Prediction (CASP13)- and Continuous Automated Model Evaluation (CAMEO)-derived sets, the method outperforms all previously described structure-prediction methods. Although trained entirely on native proteins, the network consistently assigns higher probability to de novo-designed proteins, identifying the key fold-determining residues and providing an independent quantitative measure of the {\textquotedblleft}ideality{\textquotedblright} of a protein structure. The method promises to be useful for a broad range of protein structure prediction and design problems.},
+  issn      = {0027-8424},
+  url       = {https://www.pnas.org/content/117/3/1496},
+  eprint    = {https://www.pnas.org/content/117/3/1496.full.pdf},
+  journal   = {Proceedings of the National Academy of Sciences}
+}
+@article{CopulaNet,
+  author   = {Ju, Fusong
+              and Zhu, Jianwei
+              and Shao, Bin
+              and Kong, Lupeng
+              and Liu, Tie-Yan
+              and Zheng, Wei-Mou
+              and Bu, Dongbo},
+  title    = {{CopulaNet: Learning residue co-evolution directly from multiple sequence alignment for protein structure prediction}},
+  journal  = {Nature Communications},
+  year     = {2021},
+  month    = {May},
+  day      = {05},
+  volume   = {12},
+  number   = {1},
+  pages    = {2535},
+  abstract = {Residue co-evolution has become the primary principle for estimating inter-residue distances of a protein, which are crucially important for predicting protein structure. Most existing approaches adopt an indirect strategy, i.e., inferring residue co-evolution based on some hand-crafted features, say, a covariance matrix, calculated from multiple sequence alignment (MSA) of target protein. This indirect strategy, however, cannot fully exploit the information carried by MSA. Here, we report an end-to-end deep neural network, CopulaNet, to estimate residue co-evolution directly from MSA. The key elements of CopulaNet include: (i) an encoder to model context-specific mutation for each residue; (ii) an aggregator to model residue co-evolution, and thereafter estimate inter-residue distances. Using CASP13 (the 13th Critical Assessment of Protein Structure Prediction) target proteins as representatives, we demonstrate that CopulaNet can predict protein structure with improved accuracy and efficiency. This study represents a step toward improved end-to-end prediction of inter-residue distances and protein tertiary structures.},
+  issn     = {2041-1723},
+  doi      = {10.1038/s41467-021-22869-8},
+  url      = {https://doi.org/10.1038/s41467-021-22869-8}
+}
+@article{Seq-SetNet,
+  author   = {Ju, Fusong and Zhu, Jianwei and Zhang, Qi and Wei, Guozheng and Sun, Shiwei and Zheng, Wei-Mou and Bu, Dongbo},
+  title    = {{Seq-SetNet: directly exploiting multiple sequence alignment for protein secondary structure prediction}},
+  journal  = {Bioinformatics},
+  year     = {2021},
+  month    = {11},
+  abstract = {{Accurate prediction of protein structure relies heavily on exploiting multiple sequence alignment (MSA) for residue mutations and correlations as this information specifies protein tertiary structure. The widely used prediction approaches usually transform MSA into inter-mediate models, say position-specific scoring matrix or profile hidden Markov model. These inter-mediate models, however, cannot fully represent residue mutations and correlations carried by MSA; hence, an effective way to directly exploit MSAs is highly desirable.Here, we report a novel sequence set network (called Seq-SetNet) to directly and effectively exploit MSA for protein structure prediction. Seq-SetNet uses an ‘encoding and aggregation’ strategy that consists of two key elements: (i) an encoding module that takes a component homologue in MSA as input, and encodes residue mutations and correlations into context-specific features for each residue; and (ii) an aggregation module to aggregate the features extracted from all component homologues, which are further transformed into structural properties for residues of the query protein. As Seq-SetNet encodes each homologue protein individually, it could consider both insertions and deletions, as well as long-distance correlations among residues, thus representing more information than the inter-mediate models. Moreover, the encoding module automatically learns effective features and thus avoids manual feature engineering. Using symmetric aggregation functions, Seq-SetNet processes the homologue proteins as a sequence set, making its prediction results invariable to the order of these proteins. On popular benchmark sets, we demonstrated the successful application of Seq-SetNet to predict secondary structure and torsion angles of residues with improved accuracy and efficiency.The code and datasets are available through https://github.com/fusong-ju/Seq-SetNet.Supplementary data are available at Bioinformatics online.}},
+  issn     = {1367-4803},
+  doi      = {10.1093/bioinformatics/btab777},
+  url      = {https://doi.org/10.1093/bioinformatics/btab777},
+  note     = {btab777},
+  eprint   = {https://academic.oup.com/bioinformatics/advance-article-pdf/doi/10.1093/bioinformatics/btab777/41478449/btab777.pdf}
+}
+@article{FunneledEnergyLandscape,
+  author    = {Yan, Zhiqiang and Wang, Jin},
+  title     = {Funneled energy landscape unifies principles of protein binding and evolution},
+  volume    = {117},
+  number    = {44},
+  pages     = {27218--27223},
+  year      = {2020},
+  doi       = {10.1073/pnas.2013822117},
+  publisher = {National Academy of Sciences},
+  abstract  = {Proteins are responsible for most cellular functions. Naturally occurring proteins are different from random heteropolymers of amino acids since they have evolved to spontaneously fold into native structure and specifically bind with their partners. A fundamental question is how nature selects the sequences that are sculpted to be able to not only fold into native structure but also bind with functional partners. In this work, we evolve the sequences by optimizing the fitness that satisfies both folding and binding requirements. The evolved proteins manifest similar molecular-interaction patterns as naturally occurring proteins. This validates that the principle used by nature via evolution to select protein sequences is the same as the one that governs protein folding and functional binding.Most proteins have evolved to spontaneously fold into native structure and specifically bind with their partners for the purpose of fulfilling biological functions. According to Darwin, protein sequences evolve through random mutations, and only the fittest survives. The understanding of how the evolutionary selection sculpts the interaction patterns for both biomolecular folding and binding is still challenging. In this study, we incorporated the constraint of functional binding into the selection fitness based on the principle of minimal frustration for the underlying biomolecular interactions. Thermodynamic stability and kinetic accessibility were derived and quantified from a global funneled energy landscape that satisfies the requirements of both the folding into the stable structure and binding with the specific partner. The evolution proceeds via a bowl-like evolution energy landscape in the sequence space with a closed-ring attractor at the bottom. The sequence space is increasingly reduced until this ring attractor is reached. The molecular-interaction patterns responsible for folding and binding are identified from the evolved sequences, respectively. The residual positions participating in the interactions responsible for folding are highly conserved and maintain the hydrophobic core under additional evolutionary constraints of functional binding. The positions responsible for binding constitute a distributed network via coupling conservations that determine the specificity of binding with the partner. This work unifies the principles of protein binding and evolution under minimal frustration and sheds light on the evolutionary design of proteins for functions.All study data are included in the article and supporting information.},
+  issn      = {0027-8424},
+  url       = {https://www.pnas.org/content/117/44/27218},
+  eprint    = {https://www.pnas.org/content/117/44/27218.full.pdf},
+  journal   = {Proceedings of the National Academy of Sciences}
+}
+@article{FuzzyProteinInteractions,
+  title    = {Sequence-Based Prediction of Fuzzy Protein Interactions},
+  journal  = {Journal of Molecular Biology},
+  volume   = {432},
+  number   = {7},
+  pages    = {2289-2303},
+  year     = {2020},
+  issn     = {0022-2836},
+  doi      = {https://doi.org/10.1016/j.jmb.2020.02.017},
+  url      = {https://www.sciencedirect.com/science/article/pii/S002228362030190X},
+  author   = {Marton Miskei and Attila Horvath and Michele Vendruscolo and Monika Fuxreiter},
+  keywords = {fuzzy interactions, disordered proteins, protein binding, fuzzy complexes, folding upon binding},
+  abstract = {It is becoming increasingly recognised that disordered proteins may be fuzzy, in that they can exhibit a wide variety of binding modes. In addition to the well-known process of folding upon binding (disorder-to-order transition), many examples are emerging of interacting proteins that remain disordered in their bound states (disorder-to-disorder transitions). Furthermore, disordered proteins may populate ordered and disordered states to different extents depending on their partners (context-dependent binding). Here we assemble three datasets comprising disorder-to-order, context-dependent, and disorder-to-disorder transitions of 828 protein regions represented in 2157 complexes and elucidate the sequence-determinants of the different interaction modes. We found that fuzzy interactions originate from local sequence compositions that promote the sampling of a wide range of different structures. Based on this observation, we developed the FuzPred method (http://protdyn-fuzpred.org) of predicting the binding modes of disordered proteins based on their amino acid sequences, without specifying their partners. We thus illustrate how the amino acid sequences of proteins can encode a wide range of conformational changes upon binding, including transitions from disordered to ordered and from disordered to disordered states.}
+}
+@article{Uniclust,
+  author   = {Mirdita, Milot and von den Driesch, Lars and Galiez, Clovis and Martin, Maria J. and Söding, Johannes and Steinegger, Martin},
+  title    = {{Uniclust databases of clustered and deeply annotated protein sequences and alignments}},
+  journal  = {Nucleic Acids Research},
+  volume   = {45},
+  number   = {D1},
+  pages    = {D170-D176},
+  year     = {2016},
+  month    = {11},
+  abstract = {{We present three clustered protein sequence databases, Uniclust90, Uniclust50, Uniclust30 and three databases of multiple sequence alignments (MSAs), Uniboost10, Uniboost20 and Uniboost30, as a resource for protein sequence analysis, function prediction and sequence searches. The Uniclust databases cluster UniProtKB sequences at the level of 90\\%, 50\\% and 30\\% pairwise sequence identity. Uniclust90 and Uniclust50 clusters showed better consistency of functional annotation than those of UniRef90 and UniRef50, owing to an optimised clustering pipeline that runs with our MMseqs2 software for fast and sensitive protein sequence searching and clustering. Uniclust sequences are annotated with matches to Pfam, SCOP domains, and proteins in the PDB, using our HHblits homology detection tool. Due to its high sensitivity, Uniclust contains 17\\% more Pfam domain annotations than UniProt. Uniboost MSAs of three diversities are built by enriching the Uniclust30 MSAs with local sequence matches from MMseqs2 profile searches through Uniclust30. All databases can be downloaded from the Uniclust server at uniclust.mmseqs.com. Users can search clusters by keywords and explore their MSAs, taxonomic representation, and annotations. Uniclust is updated every two months with the new UniProt release.}},
+  issn     = {0305-1048},
+  doi      = {10.1093/nar/gkw1081},
+  url      = {https://doi.org/10.1093/nar/gkw1081},
+  eprint   = {https://academic.oup.com/nar/article-pdf/45/D1/D170/8846789/gkw1081.pdf}
+}
