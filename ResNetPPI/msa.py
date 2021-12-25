@@ -16,7 +16,7 @@
 # @Filename: msa.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-24 10:08:52 am
+# @Last Modified: 2021-12-25 03:57:14 pm
 import os
 import datetime
 import argparse
@@ -48,7 +48,7 @@ def prepare_input_seq_and_folder(folder, seq_header, seq):
 def running_msa_pipeline(args):
     dataframe = read_csv(args.pdb_list, dtype=str, keep_default_na=False, chunksize=300)
     for dataset in dataframe:
-        msa_cmds = []
+        msa_cmds = set()
         for record in dataset.itertuples(index=False):
             pdb_chain_1 = PDB_CHAIN(record.pdb_id, record.entity_id_1, record.struct_asym_id_1, record.chain_id_1)
             pdb_chain_2 = PDB_CHAIN(record.pdb_id, record.entity_id_2, record.struct_asym_id_2, record.chain_id_2)
@@ -73,10 +73,10 @@ def running_msa_pipeline(args):
                         ).decode('utf-8'),
                         entity_seq[res_i_beg-1: res_i_end])
                 if not (chain_wdir/'t000_.msa0.a3m').exists():
-                    msa_cmds.append(f"{args.sc_dir}/make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr")
+                    msa_cmds.add(f"{args.sc_dir}/make_msa.sh {chain_wdir}/seq.fasta {chain_wdir} {args.n_cpu} {args.n_mem} {args.seqdb_dir} > {chain_wdir}/log/make_msa.stdout 2> {chain_wdir}/log/make_msa.stderr")
         if msa_cmds:
             print(f"[{datetime.datetime.now()}] would run {len(msa_cmds)} cmds")
-            joblib.Parallel(n_jobs=args.n_job)(joblib.delayed(os.system)(msa_cmd_i) for msa_cmd_i in msa_cmds)
+            joblib.Parallel(n_jobs=min(args.n_job, len(msa_cmds)))(joblib.delayed(os.system)(msa_cmd_i) for msa_cmd_i in msa_cmds)
 
 
 if __name__ == '__main__':

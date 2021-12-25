@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-24 03:39:35 pm
+# @Last Modified: 2021-12-25 04:42:11 pm
 import numpy as np
 import scipy.spatial
 import torch
@@ -63,8 +63,8 @@ class ResNetPPI(pl.LightningModule):
         super().__init__()
         self.resnet1d = ResNet1D(encode_dim, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*18)
-        self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False)
-        # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False)
+        self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
+        # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
     
@@ -78,22 +78,44 @@ class ResNetPPI(pl.LightningModule):
         return torch.from_numpy(encoding)
 
     def pw_encoding(self, aln: np.ndarray):
-        return self.onehot_encoding(aln).reshape(1, ENCODE_DIM, -1)
+        return self.onehot_encoding(aln).reshape(ENCODE_DIM, -1)
 
     def gen_pw_embedding(self, pw_msa):
         ref_length = (pw_msa[0][0] != 20).sum()
         for pw_aln in pw_msa:
             # $1 \times C \times L_k$
-            msa_embedding = self.resnet1d(self.pw_encoding(pw_aln))  # TODO: optimize with torch.utils.data.DataLoader
+            msa_embedding = self.resnet1d(self.pw_encoding(pw_aln).unsqueeze(0))
             if pw_aln.shape[1] != ref_length:
                 yield msa_embedding[:, :, pw_aln[0] != 20]  # NOTE: maybe a point to optimize (CPU <-> GPU)
             else:
                 yield msa_embedding
+
+    """
+    def gen_pw_embedding_group(self, pw_msa):
+        # NOTE: the order of homologous sequences would change
+        ref_length = (pw_msa[0][0] != 20).sum()
+        group_pw_msa = defaultdict(list)
+        for pw_idx, pw_aln in enumerate(pw_msa):
+            group_pw_msa[pw_aln.shape[1]].append(pw_idx)
+        for group in group_pw_msa.values():
+            # $g \times C \times L_k$
+            msa_embedding = self.resnet1d(torch.stack([self.pw_encoding(pw_msa[pw_idx]) for pw_idx in group], dim=0))
+            if msa_embedding.shape[2] == ref_length:
+                yield msa_embedding
+            else:
+                for pw_idx_idx, pw_idx in enumerate(group):
+                    yield msa_embedding[[pw_idx_idx]][:, :, pw_msa[pw_idx][0] != 20]  # TODO: optimize
+    """
     
     def msa_embedding(self, pw_msa):
         return torch.cat(tuple(self.gen_pw_embedding(pw_msa)))
 
-    def gen_coevolution_aggregator(self, ref_length, iden_eff_weights, msa_embeddings):
+    def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings, max_k: int = 1000):
+        cur_k, _, ref_length = msa_embeddings.shape
+        if cur_k > max_k:
+            use_indices = torch.randperm(cur_k)[:max_k]
+            iden_eff_weights = iden_eff_weights[use_indices]
+            msa_embeddings = msa_embeddings[use_indices]
         msa_embeddings = msa_embeddings.transpose(0, 1)
         # Weights: $1 \times K$
         m_eff = iden_eff_weights.sum()
@@ -124,14 +146,13 @@ class ResNetPPI(pl.LightningModule):
         # MSA Embeddings: $K \times C \times L$
         msa_embeddings = self.msa_embedding(pw_msa)
         ref_length = msa_embeddings.shape[2]
-        coevo_agg = self.gen_coevolution_aggregator(ref_length, iden_eff_weights, msa_embeddings)
+        coevo_agg = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings)
         coevo_couplings = torch.zeros((ref_length, ref_length, 4224), dtype=torch.float32)
         # TODO: optimization for symmetric tensors
         # coevo_couplings = torch.stack(tuple(coevo_agg), dim=0).transpose(-1, -2)
         for (idx_i, idx_j), coevo_cp in coevo_agg:  # tqdm(coevo_agg, total=ref_length*(ref_length-1)//2):
             coevo_couplings[idx_i, idx_j, :] = coevo_couplings[idx_j, idx_i, :] = coevo_cp
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3).unsqueeze(0))
-        print(r2s.shape)
         return self.softmax_func(
             self.conv2d_37(
                 0.5*(r2s + r2s.transpose(-1, -2))

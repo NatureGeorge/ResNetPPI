@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-23 03:39:17 pm
+# @Last Modified: 2021-12-25 03:57:50 pm
 from ResNetPPI.coords6d import *
 import re
 import json
@@ -129,6 +129,14 @@ def gen_ref_msa_from_pairwise_aln(pw_msa):
         use_idx = np.where(pw_ref!=20)[0]
         ref_msa[idx+1] = pw_hmo[use_idx]
     return ref_msa
+
+
+"""
+def sample_pairwise_aln(pw_msa, cutoff: int = 1000):
+    if len(pw_msa) <= cutoff:
+        return pw_msa
+    return random.sample(pw_msa, cutoff)
+"""
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:
