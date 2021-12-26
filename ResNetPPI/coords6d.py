@@ -16,13 +16,13 @@
 # @Filename: coords6d.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-15 11:00:20 am
+# @Last Modified: 2021-12-26 05:39:11 pm
 import numpy as np
 import scipy
 import scipy.spatial
 
 
-def get_dist6d(Cb: np.ndarray, dmax: float = 20.0, dist_fill_value: float = 0.0, dtype=np.float64):
+def get_dist6d(Cb: np.ndarray, dmax: float = 20.0, dist_fill_value: float = 0.0, dtype=np.float32):
     nres = Cb.shape[0]
 
     kdCb = scipy.spatial.cKDTree(Cb)

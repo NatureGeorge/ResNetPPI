@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-25 07:58:36 pm
+# @Last Modified: 2021-12-25 11:27:53 pm
 from ResNetPPI.coords6d import *
 import re
 import json
@@ -49,7 +49,7 @@ def get_res_idx_range(obs_index):
     return res_idxes, missing_segs
 
 
-def get_real_or_virtual_CB(res, gly_ca: bool = False):
+def get_real_or_virtual_CB(res, gly_ca: bool = True):
     if res.name != 'GLY':
         try:
             return res['CB'][0].pos.tolist()
@@ -73,7 +73,7 @@ def get_real_or_virtual_CB(res, gly_ca: bool = False):
     return (-0.58273431*a + 0.56802827*b - 0.54067466*c + Ca).tolist()
 
 
-def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = False, dtype=np.float32):
+def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = True, dtype=np.float32):
     if representative_atom == 'CB':
         xyz = np.array([get_real_or_virtual_CB(res, gly_ca) for res in chain_obj], dtype=dtype)
     elif representative_atom == 'CA':
