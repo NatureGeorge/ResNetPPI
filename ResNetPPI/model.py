@@ -16,47 +16,19 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-27 07:30:14 pm
+# @Last Modified: 2021-12-28 12:28:12 am
 from collections import defaultdict
-import numpy as np
-import scipy.spatial
 import torch
 from torch import nn
 import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
-from ResNetPPI.utils import (identity_score,
-                             gen_ref_msa_from_pairwise_aln,
-                             get_random_crop_idx)
+from ResNetPPI.utils import get_random_crop_idx
 
 
 # SETTINGS
 ONEHOT_DIM = 22
 ENCODE_DIM = 44 # 46 if add hydrophobic features
 CROP_SIZE = 128 # 64 if CUDA run out of memory
-ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
-
-
-# FUNCTIONS
-# def onehot_encoding(aln):
-#     ONEHOT = torch.eye(ONEHOT_DIM, dtype=torch.float)
-#     aln = torch.from_numpy(aln)
-#     encoding = ONEHOT[aln.to(torch.int64)].transpose(-1, -2)
-#     encoding = encoding.reshape(-1, encoding.shape[-1])
-#     return encoding
-
-
-def get_eff_weights(pw_msa):
-    '''
-    NOTE:
-    following identity calculation include the reference sequence 
-    and ignore those insertion regions of the homologous sequences
-    '''
-    ref_msa = gen_ref_msa_from_pairwise_aln(pw_msa)
-    iden_score_mat = scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(ref_msa, metric=identity_score))
-    np.fill_diagonal(iden_score_mat, 1)
-    iden_eff_weights = 1.0/(iden_score_mat >= 0.8).sum(axis=0)
-    # m_eff = iden_eff_weights.sum()
-    return iden_eff_weights
 
 
 class ResNetPPI(pl.LightningModule):
@@ -68,17 +40,18 @@ class ResNetPPI(pl.LightningModule):
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
+        self.ONEHOT = torch.eye(ONEHOT_DIM, dtype=torch.float)
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
-    def onehot_encoding(self, aln: np.ndarray):
-        encoding = ONEHOT[aln].transpose((0, 2, 1))
+    def onehot_encoding(self, aln):
+        encoding = self.ONEHOT[aln.to(torch.int64)].transpose(-1, -2)
         encoding = encoding.reshape(-1, encoding.shape[-1])
-        return torch.from_numpy(encoding).float()
+        return encoding
 
-    def pw_encoding(self, aln: np.ndarray):
+    def pw_encoding(self, aln):
         return self.onehot_encoding(aln).reshape(ENCODE_DIM, -1)
 
     '''
@@ -101,7 +74,7 @@ class ResNetPPI(pl.LightningModule):
             group_pw_msa[pw_aln.shape[1]].append(pw_idx)
         for l_k, group in group_pw_msa.items():
             # $g \times C \times L_k$
-            pw_encodings = torch.zeros((len(group), ENCODE_DIM, l_k), dtype=torch.float)
+            pw_encodings = torch.zeros((len(group), ENCODE_DIM, l_k), dtype=torch.float, device=pw_msa[0].device)
             for pw_idx_idx, pw_idx in enumerate(group):
                 pw_encodings[pw_idx_idx] = self.pw_encoding(pw_msa[pw_idx])
                 iden_eff_weights_idx.append(pw_idx)
@@ -153,7 +126,7 @@ class ResNetPPI(pl.LightningModule):
             idx_i_range = range(ref_length)
             idx_j_range = range(ref_length)
         # Aggregating
-        coevo_couplings = torch.zeros((1, ref_length, ref_length, 4224), dtype=torch.float)
+        coevo_couplings = torch.zeros((1, ref_length, ref_length, 4224), dtype=torch.float, device=msa_embeddings.device)
         ij_record = {}
         for use_idx_i, idx_i in enumerate(idx_i_range):
             f_i = one_body_term[idx_i]
@@ -186,8 +159,7 @@ class ResNetPPI(pl.LightningModule):
                 ij_record[idx_i, idx_j] = (0, use_idx_i, use_idx_j)
         return coevo_couplings, cropping_info
 
-    def forward_single_protein(self, pw_msa, crop_d: bool):
-        iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:]).float()
+    def forward_single_protein(self, pw_msa, iden_eff_weights, crop_d: bool):
         # MSA Embeddings: $K \times C \times L$
         iden_eff_weights_idx = []
         msa_embeddings = self.msa_embedding(pw_msa, iden_eff_weights_idx)
@@ -218,19 +190,19 @@ class ResNetPPI(pl.LightningModule):
         return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):
-        ref_seq_info_1, pw_msa_1, label_dist6d_1 = train_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], True)
+        ref_seq_info_1, pw_msa_1, iden_eff_weights_1, label_dist6d_1 = train_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], iden_eff_weights_1[0], True)
         l_idx_1 = ref_seq_info_1['obs_mask'][0]
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
-        self.log('train_loss', loss_1)
+        self.log('train_loss', loss_1, batch_size=1)
         return loss_1
 
     def validation_step(self, val_batch, batch_idx):
-        ref_seq_info_1, pw_msa_1, label_dist6d_1 = val_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], True)
+        ref_seq_info_1, pw_msa_1, iden_eff_weights_1, label_dist6d_1 = val_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], iden_eff_weights_1[0], True)
         l_idx_1 = ref_seq_info_1['obs_mask'][0]
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
-        self.log('val_loss', loss_1)
+        self.log('val_loss', loss_1, batch_size=1)
         return loss_1
 
     def forward(self, pw_msa):

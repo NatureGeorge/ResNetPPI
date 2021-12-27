@@ -16,8 +16,7 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-27 07:34:36 pm
-import torch
+# @Last Modified: 2021-12-28 12:27:47 am
 from torch.utils.data import Dataset
 from ResNetPPI.msa import *
 from ResNetPPI.utils import (get_representative_xyz,
@@ -25,7 +24,8 @@ from ResNetPPI.utils import (get_representative_xyz,
                              get_dist6d_2,
                              get_label_bin_map,
                              load_pairwise_aln_from_a3m,
-                             sample_pairwise_aln)
+                             sample_pairwise_aln,
+                             get_eff_weights)
 
 DIST_CUTOFF = 20.0
 
@@ -57,4 +57,5 @@ class SeqStructDataset(Dataset):
         loading_a3m_1 = load_pairwise_aln_from_a3m(msa_file_1)
         ref_seq_info_1 = next(loading_a3m_1)
         pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1))
-        return ref_seq_info_1, pw_msa_1, binned_dist6d_1
+        iden_eff_weights_1 = get_eff_weights(pw_msa_1)[1:]
+        return ref_seq_info_1, pw_msa_1, iden_eff_weights_1, binned_dist6d_1

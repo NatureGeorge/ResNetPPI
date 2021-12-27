@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-27 12:12:09 pm
+# @Last Modified: 2021-12-28 12:27:05 am
 from ResNetPPI.coords6d import *
 import re
 import json
@@ -54,7 +54,7 @@ def get_real_or_virtual_CB(res, gly_ca: bool = True):
         try:
             return res['CB'][0].pos.tolist()
         except Exception:
-            LOGGER.warning(f"no CB for {res}")
+            LOGGER.debug(f"no CB for {res}")
     else:
         if gly_ca:
             try:
@@ -281,3 +281,18 @@ def to_interval(lyst):
                 i += 1
 
     return [[min(li), max(li)] for li in interval_lyst]
+
+
+def get_eff_weights(pw_msa):
+    '''
+    NOTE:
+    following identity calculation include the reference sequence 
+    and ignore those insertion regions of the homologous sequences
+    '''
+    ref_msa = gen_ref_msa_from_pairwise_aln(pw_msa)
+    iden_score_mat = scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(ref_msa, metric=identity_score))
+    np.fill_diagonal(iden_score_mat, 1)
+    iden_eff_weights = 1.0/(iden_score_mat >= 0.8).sum(axis=0)
+    # m_eff = iden_eff_weights.sum()
+    return iden_eff_weights.astype(np.float32)
+

@@ -2,3 +2,5 @@ __pycache__
 *.zip
 *.txt
 scripts/tex2md.sh
+_*.ipynb
+lightning_logs
