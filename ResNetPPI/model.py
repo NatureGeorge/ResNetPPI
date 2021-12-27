@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-26 09:31:19 pm
+# @Last Modified: 2021-12-27 12:19:47 pm
 from collections import defaultdict
 import numpy as np
 import scipy.spatial
@@ -28,7 +28,8 @@ from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import (identity_score,
                              load_pairwise_aln_from_a3m,
                              sample_pairwise_aln,
-                             gen_ref_msa_from_pairwise_aln)
+                             gen_ref_msa_from_pairwise_aln,
+                             get_random_crop_idx)
 
 
 # SETTINGS
@@ -115,7 +116,7 @@ class ResNetPPI(pl.LightningModule):
     def msa_embedding(self, pw_msa, iden_eff_weights_idx):
         return torch.cat(tuple(self.gen_pw_embedding_group(pw_msa, iden_eff_weights_idx)))
 
-    def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings, coevo_couplings):
+    def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings, crop_d: bool):
         cur_k, _, ref_length = msa_embeddings.shape
         """
         if cur_k > max_k:
@@ -132,10 +133,33 @@ class ResNetPPI(pl.LightningModule):
         ### one_body_term = torch.matmul(iden_eff_weights, msa_embeddings).squeeze(1).transpose(0, 1)/m_eff
         one_body_term = torch.einsum('ckl,k->lc', msa_embeddings, iden_eff_weights)/m_eff
         msa_embeddings = msa_embeddings.transpose(0, 2)  # $L \times K \times C$
-        for idx_i in range(ref_length-1):
+        # Handle Cropping
+        if crop_d and (ref_length > CROP_SIZE):
+            crop_idx_x, crop_idx_y = get_random_crop_idx(ref_length, CROP_SIZE)
+            if crop_idx_x <= (ref_length - CROP_SIZE - 1):
+                idx_i_range = range(crop_idx_x, crop_idx_x+CROP_SIZE)
+            else:
+                idx_i_range = range(crop_idx_x-CROP_SIZE, crop_idx_x)
+            if crop_idx_y <= (ref_length - CROP_SIZE - 1):
+                idx_j_range = range(crop_idx_y, crop_idx_y+CROP_SIZE)
+            else:
+                idx_j_range = range(crop_idx_y-CROP_SIZE, crop_idx_y)
+            ref_length = CROP_SIZE
+        else:
+            idx_i_range = range(ref_length)
+            idx_j_range = range(ref_length)
+        # Aggregating
+        coevo_couplings = torch.zeros((1, ref_length, ref_length, 4224), dtype=torch.float)
+        ij_record = {}
+        for idx_i in idx_i_range:
             f_i = one_body_term[idx_i]
             x_k_i = msa_embeddings[idx_i]
-            for idx_j in range(idx_i+1, ref_length):
+            for idx_j in idx_j_range:
+                if idx_i == idx_j:
+                    continue
+                if (idx_j, idx_i) in ij_record:
+                    coevo_couplings[0, idx_i, idx_j] = coevo_couplings[0, idx_j, idx_i]
+                    continue
                 f_j = one_body_term[idx_j]
                 x_k_j = msa_embeddings[idx_j]
                 # Two-Body Term: $C \times C$
@@ -155,21 +179,19 @@ class ResNetPPI(pl.LightningModule):
                 coevo_couplings[0, idx_i, idx_j, :64] = f_i
                 coevo_couplings[0, idx_i, idx_j, 64:128] = f_j
                 coevo_couplings[0, idx_i, idx_j, 128:] = two_body_term_ij.flatten()
-                coevo_couplings[0, idx_j, idx_i] = coevo_couplings[0, idx_i, idx_j]
+                ij_record[idx_i, idx_j] = True
+        return coevo_couplings
 
-    def forward_single_protein(self, pw_msa):
+    def forward_single_protein(self, pw_msa, crop_d: bool):
         iden_eff_weights = torch.from_numpy(get_eff_weights(pw_msa)[1:]).float()
         # MSA Embeddings: $K \times C \times L$
         iden_eff_weights_idx = []
         msa_embeddings = self.msa_embedding(pw_msa, iden_eff_weights_idx)
         iden_eff_weights = iden_eff_weights[iden_eff_weights_idx]
-        ref_length = msa_embeddings.shape[2]
-        coevo_couplings = torch.zeros((1, ref_length, ref_length, 4224), dtype=torch.float)
         # TODO: optimization for symmetric tensors
-        self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, coevo_couplings)
+        coevo_couplings = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, crop_d)
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3))
-        mid = self.conv2d_37(r2s)
-        return self.softmax_func(0.5*(mid + mid.transpose(-1, -2)))
+        return self.softmax_func(self.conv2d_37(r2s))
 
     def loss_single_protein(self, l_idx, pred, target):
         if l_idx.shape[0] == pred.shape[2]:
@@ -184,7 +206,7 @@ class ResNetPPI(pl.LightningModule):
         loading_a3m = load_pairwise_aln_from_a3m(msa_file)
         ref_seq_info = next(loading_a3m)
         pw_msa = sample_pairwise_aln(tuple(loading_a3m))
-        pred_dist6d_1 = self.forward_single_protein(pw_msa)
+        pred_dist6d_1 = self.forward_single_protein(pw_msa, True)
         l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)
         #self.log('train_loss', loss)
@@ -196,7 +218,7 @@ class ResNetPPI(pl.LightningModule):
         loading_a3m = load_pairwise_aln_from_a3m(msa_file)
         ref_seq_info = next(loading_a3m)
         pw_msa = sample_pairwise_aln(tuple(loading_a3m))
-        pred_dist6d_1 = self.forward_single_protein(pw_msa)
+        pred_dist6d_1 = self.forward_single_protein(pw_msa, True)
         l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
         loss = self.loss_single_protein(l_idx, pred_dist6d_1, label_dist6d_1)
         self.log('val_loss', loss)
@@ -206,5 +228,5 @@ class ResNetPPI(pl.LightningModule):
         loading_a3m = load_pairwise_aln_from_a3m(msa_file)
         next(loading_a3m)
         pw_msa = tuple(loading_a3m)
-        return self.forward_single_protein(pw_msa)
+        return self.forward_single_protein(pw_msa, False)
 
