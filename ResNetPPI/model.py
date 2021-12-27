@@ -16,18 +16,15 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-27 04:15:41 pm
+# @Last Modified: 2021-12-27 07:30:14 pm
 from collections import defaultdict
 import numpy as np
 import scipy.spatial
 import torch
 from torch import nn
-from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import (identity_score,
-                             load_pairwise_aln_from_a3m,
-                             sample_pairwise_aln,
                              gen_ref_msa_from_pairwise_aln,
                              get_random_crop_idx)
 
@@ -221,31 +218,22 @@ class ResNetPPI(pl.LightningModule):
         return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):
-        msa_file, label_dist6d_1 = train_batch
-        loading_a3m = load_pairwise_aln_from_a3m(msa_file)
-        ref_seq_info = next(loading_a3m)
-        pw_msa = sample_pairwise_aln(tuple(loading_a3m))
-        pred_dist6d_1, cropping_info = self.forward_single_protein(pw_msa, True)
-        l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
-        loss = self.loss_single_protein(cropping_info, l_idx, pred_dist6d_1, label_dist6d_1)
-        #self.log('train_loss', loss)
-        return loss
-        
+        ref_seq_info_1, pw_msa_1, label_dist6d_1 = train_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], True)
+        l_idx_1 = ref_seq_info_1['obs_mask'][0]
+        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
+        self.log('train_loss', loss_1)
+        return loss_1
 
     def validation_step(self, val_batch, batch_idx):
-        msa_file, label_dist6d_1 = val_batch
-        loading_a3m = load_pairwise_aln_from_a3m(msa_file)
-        ref_seq_info = next(loading_a3m)
-        pw_msa = sample_pairwise_aln(tuple(loading_a3m))
-        pred_dist6d_1, cropping_info = self.forward_single_protein(pw_msa, True)
-        l_idx = torch.from_numpy(ref_seq_info['obs_mask'])
-        loss = self.loss_single_protein(cropping_info, l_idx, pred_dist6d_1, label_dist6d_1)
-        self.log('val_loss', loss)
+        ref_seq_info_1, pw_msa_1, label_dist6d_1 = val_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], True)
+        l_idx_1 = ref_seq_info_1['obs_mask'][0]
+        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
+        self.log('val_loss', loss_1)
+        return loss_1
 
-    def forward(self, msa_file):
+    def forward(self, pw_msa):
         # NOTE: for prediction/inference actions
-        loading_a3m = load_pairwise_aln_from_a3m(msa_file)
-        next(loading_a3m)
-        pw_msa = tuple(loading_a3m)
         return self.forward_single_protein(pw_msa, False)[0]
 
