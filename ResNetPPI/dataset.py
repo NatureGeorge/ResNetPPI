@@ -16,7 +16,7 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-27 07:07:06 pm
+# @Last Modified: 2021-12-27 07:34:36 pm
 import torch
 from torch.utils.data import Dataset
 from ResNetPPI.msa import *
@@ -51,9 +51,9 @@ class SeqStructDataset(Dataset):
         idx_1, dist6d_1 = get_dist6d(xyz_1, DIST_CUTOFF)
         #idx_2, dist6d_2 = get_dist6d(xyz_2, DIST_CUTOFF)
         #idx_12, dist6d_12 = get_dist6d_2(xyz_2, xyz_1, DIST_CUTOFF)
-        binned_dist6d_1 = torch.from_numpy(get_label_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False))
-        #binned_dist6d_2 = torch.from_numpy(get_label_bin_map(idx_2, dist6d_2, 0.5, 2, 20, non_contact_at_first=False))
-        #binned_dist6d_12 = torch.from_numpy(get_label_bin_map(idx_12, dist6d_12, 0.5, 0, 20, non_contact_at_first=False))
+        binned_dist6d_1 = get_label_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False)
+        #binned_dist6d_2 = get_label_bin_map(idx_2, dist6d_2, 0.5, 2, 20, non_contact_at_first=False)
+        #binned_dist6d_12 = get_label_bin_map(idx_12, dist6d_12, 0.5, 0, 20, non_contact_at_first=False)
         loading_a3m_1 = load_pairwise_aln_from_a3m(msa_file_1)
         ref_seq_info_1 = next(loading_a3m_1)
         pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1))
