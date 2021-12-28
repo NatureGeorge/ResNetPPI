@@ -16,19 +16,13 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-28 12:28:12 am
-from collections import defaultdict
+# @Last Modified: 2021-12-28 09:04:25 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
+from ResNetPPI import ENCODE_DIM, CROP_SIZE
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
-
-
-# SETTINGS
-ONEHOT_DIM = 22
-ENCODE_DIM = 44 # 46 if add hydrophobic features
-CROP_SIZE = 128 # 64 if CUDA run out of memory
 
 
 class ResNetPPI(pl.LightningModule):
@@ -40,53 +34,40 @@ class ResNetPPI(pl.LightningModule):
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
-        self.ONEHOT = torch.eye(ONEHOT_DIM, dtype=torch.float)
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
-    def onehot_encoding(self, aln):
-        encoding = self.ONEHOT[aln.to(torch.int64)].transpose(-1, -2)
-        encoding = encoding.reshape(-1, encoding.shape[-1])
-        return encoding
-
-    def pw_encoding(self, aln):
-        return self.onehot_encoding(aln).reshape(ENCODE_DIM, -1)
-
     '''
-    def gen_pw_embedding_1by1(self, pw_msa):
-        ref_length = (pw_msa[0][0] != 20).sum()
-        for pw_aln in pw_msa:
+    def gen_pw_embedding_1by1(self, pw_encodings):
+        ref_length = (pw_encodings[0][20] != 1).sum()
+        for pw_aln in pw_encodings:
             # $1 \times C \times L_k$
-            msa_embedding = self.resnet1d(self.pw_encoding(pw_aln).unsqueeze(0))
+            msa_embedding = self.resnet1d(pw_aln.unsqueeze(0))
             if pw_aln.shape[1] != ref_length:
-                yield msa_embedding[:, :, pw_aln[0] != 20]  # NOTE: maybe a point to optimize (CPU <-> GPU)
+                yield msa_embedding[:, :, pw_aln[20] != 1]
             else:
                 yield msa_embedding
     '''
 
-    def gen_pw_embedding_group(self, pw_msa, iden_eff_weights_idx):
-        # NOTE: the order of homologous sequences would change
-        ref_length = (pw_msa[0][0] != 20).sum()
-        group_pw_msa = defaultdict(list)
-        for pw_idx, pw_aln in enumerate(pw_msa):
-            group_pw_msa[pw_aln.shape[1]].append(pw_idx)
-        for l_k, group in group_pw_msa.items():
-            # $g \times C \times L_k$
-            pw_encodings = torch.zeros((len(group), ENCODE_DIM, l_k), dtype=torch.float, device=pw_msa[0].device)
-            for pw_idx_idx, pw_idx in enumerate(group):
-                pw_encodings[pw_idx_idx] = self.pw_encoding(pw_msa[pw_idx])
-                iden_eff_weights_idx.append(pw_idx)
-            msa_embedding = self.resnet1d(pw_encodings)
-            if msa_embedding.shape[2] == ref_length:
+    def gen_pw_embedding_group(self, pw_encodings_group):
+        ref_length = (pw_encodings_group[0][0][20] != 1).sum()
+        for group in pw_encodings_group:
+            msa_embedding = self.resnet1d(group)
+            cur_k, channel_size, l_k = msa_embedding.shape
+            if l_k == ref_length:
                 yield msa_embedding
             else:
-                for pw_idx_idx, pw_idx in enumerate(group):
-                    yield msa_embedding[[pw_idx_idx]][:, :, pw_msa[pw_idx][0] != 20]  # TODO: optimize
+                #for idx_k in range(msa_embedding.shape[0]):
+                #    yield msa_embedding[[idx_k]][:, :, group[idx_k][20] != 1]
+                mask = torch.zeros_like(msa_embedding, dtype=torch.bool)
+                for idx in range(cur_k):
+                    mask[idx] = (group[idx][20] != 1).unsqueeze(0).repeat(channel_size, 1)
+                yield msa_embedding[mask].reshape(cur_k, channel_size, ref_length)
     
-    def msa_embedding(self, pw_msa, iden_eff_weights_idx):
-        return torch.cat(tuple(self.gen_pw_embedding_group(pw_msa, iden_eff_weights_idx)))
+    def get_msa_embeddings(self, pw_encodings_group):
+        return torch.cat(tuple(self.gen_pw_embedding_group(pw_encodings_group)))
 
     def gen_coevolution_aggregator(self, iden_eff_weights, msa_embeddings, crop_d: bool):
         cur_k, _, ref_length = msa_embeddings.shape
@@ -159,11 +140,9 @@ class ResNetPPI(pl.LightningModule):
                 ij_record[idx_i, idx_j] = (0, use_idx_i, use_idx_j)
         return coevo_couplings, cropping_info
 
-    def forward_single_protein(self, pw_msa, iden_eff_weights, crop_d: bool):
+    def forward_single_protein(self, pw_encodings_group, iden_eff_weights, crop_d: bool):
         # MSA Embeddings: $K \times C \times L$
-        iden_eff_weights_idx = []
-        msa_embeddings = self.msa_embedding(pw_msa, iden_eff_weights_idx)
-        iden_eff_weights = iden_eff_weights[iden_eff_weights_idx]
+        msa_embeddings = self.get_msa_embeddings(pw_encodings_group)
         # TODO: optimization for symmetric tensors
         coevo_couplings, cropping_info = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, crop_d)
         r2s = self.resnet2d(coevo_couplings.transpose(-1, -3))
@@ -190,22 +169,22 @@ class ResNetPPI(pl.LightningModule):
         return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):
-        ref_seq_info_1, pw_msa_1, iden_eff_weights_1, label_dist6d_1 = train_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], iden_eff_weights_1[0], True)
-        l_idx_1 = ref_seq_info_1['obs_mask'][0]
-        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
+        ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = train_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, True)
+        l_idx_1 = ref_seq_info_1['obs_mask']
+        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
         self.log('train_loss', loss_1, batch_size=1)
         return loss_1
 
     def validation_step(self, val_batch, batch_idx):
-        ref_seq_info_1, pw_msa_1, iden_eff_weights_1, label_dist6d_1 = val_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_msa_1[0], iden_eff_weights_1[0], True)
-        l_idx_1 = ref_seq_info_1['obs_mask'][0]
-        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1)
+        ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = val_batch
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, True)
+        l_idx_1 = ref_seq_info_1['obs_mask']
+        loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
         self.log('val_loss', loss_1, batch_size=1)
         return loss_1
 
-    def forward(self, pw_msa):
+    def forward(self, pw_encodings):
         # NOTE: for prediction/inference actions
-        return self.forward_single_protein(pw_msa, False)[0]
+        return self.forward_single_protein(pw_encodings, False)[0]
 

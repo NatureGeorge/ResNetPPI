@@ -16,12 +16,14 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-28 12:27:05 am
+# @Last Modified: 2021-12-28 09:02:40 pm
 from ResNetPPI.coords6d import *
+from ResNetPPI import ONEHOT_DIM, ENCODE_DIM, MAX_K
 import re
 import json
 import zlib
 import random
+from collections import defaultdict
 from pathlib import Path
 import numpy as np
 import logging
@@ -132,7 +134,7 @@ def gen_ref_msa_from_pairwise_aln(pw_msa):
     return ref_msa
 
 
-def sample_pairwise_aln(pw_msa, max_k: int = 1000):
+def sample_pairwise_aln(pw_msa, max_k: int = MAX_K):
     cur_k = len(pw_msa)
     assert cur_k > 0
     if cur_k <= max_k:
@@ -246,43 +248,6 @@ def identity_score(a, b):
     return ((a == b).sum() - mask_ab_sum)/(a.shape[0] - mask_ab_sum)
 
 
-def to_interval(lyst):
-    assert len(lyst) > 0
-
-    start = []
-    interval_lyst = []
-    max_edge = max(lyst)
-    min_edge = min(lyst)
-
-    if len(lyst) == (max_edge + 1 - min_edge):
-        return [[min_edge, max_edge]]
-
-    lyst_list = sorted(lyst)
-
-    for j in lyst_list:
-        if len(start) == 0:
-            i = j
-            start.append(j)
-            i += 1
-        else:
-            if (i != j) or (j == max(lyst_list)):
-                if j == max(lyst_list):
-                    if (i != j):
-                        interval_lyst.append(start)
-                        interval_lyst.append([j])
-                        break
-                    else:
-                        start.append(j)
-                interval_lyst.append(start)
-                start = [j]
-                i = j + 1
-            else:
-                start.append(j)
-                i += 1
-
-    return [[min(li), max(li)] for li in interval_lyst]
-
-
 def get_eff_weights(pw_msa):
     '''
     NOTE:
@@ -295,4 +260,28 @@ def get_eff_weights(pw_msa):
     iden_eff_weights = 1.0/(iden_score_mat >= 0.8).sum(axis=0)
     # m_eff = iden_eff_weights.sum()
     return iden_eff_weights.astype(np.float32)
+
+
+ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
+
+
+def onehot_encoding(aln: np.ndarray):
+    encoding = ONEHOT[aln].transpose((0, 2, 1))
+    encoding = encoding.reshape(-1, encoding.shape[-1])
+    return encoding.reshape(ENCODE_DIM, -1)
+
+
+def gen_pw_encodings_group(pw_encodings, iden_eff_weights_idx):
+    # NOTE: the order of homologous sequences would change
+    ## ref_length = (pw_encodings[0][20] != 1).sum()
+    group_pw_msa = defaultdict(list)
+    for pw_idx, pw_aln in enumerate(pw_encodings):
+        group_pw_msa[pw_aln.shape[1]].append(pw_idx)
+    for group in group_pw_msa.values():
+        # $g \times C \times L_k$
+        pw_encodings_group = np.stack([pw_encodings[pw_idx] for pw_idx in group], axis=0)
+        iden_eff_weights_idx.extend(group)
+        yield pw_encodings_group
+
+
 
