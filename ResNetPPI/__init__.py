@@ -16,11 +16,11 @@
 # @Filename: __init__.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-28 09:03:29 pm
+# @Last Modified: 2021-12-29 03:11:25 pm
 
 # SETTINGS
 ONEHOT_DIM = 22
 ENCODE_DIM = 44 # 46 if add hydrophobic features
-CROP_SIZE = 64 # 64 if CUDA run out of memory
+CROP_SIZE = 128 # 64 if CUDA run out of memory
 DIST_CUTOFF = 20.0
-MAX_K = 50
+MAX_K = 1000

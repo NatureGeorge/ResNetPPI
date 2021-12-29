@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-28 09:04:25 pm
+# @Last Modified: 2021-12-29 03:02:15 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -145,8 +145,8 @@ class ResNetPPI(pl.LightningModule):
         msa_embeddings = self.get_msa_embeddings(pw_encodings_group)
         # TODO: optimization for symmetric tensors
         coevo_couplings, cropping_info = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, crop_d)
-        r2s = self.resnet2d(coevo_couplings.transpose(-1, -3))
-        return self.softmax_func(self.conv2d_37(r2s)), cropping_info
+        r2s = self.resnet2d(coevo_couplings.movedim(3, 1))
+        return self.conv2d_37(r2s), cropping_info
 
     def loss_single_protein(self, cropping_info, l_idx, pred, target):
         # TODO: optimize double index
@@ -184,7 +184,9 @@ class ResNetPPI(pl.LightningModule):
         self.log('val_loss', loss_1, batch_size=1)
         return loss_1
 
-    def forward(self, pw_encodings):
+    def forward(self, inputs):
         # NOTE: for prediction/inference actions
-        return self.forward_single_protein(pw_encodings, False)[0]
+        pw_encodings_group, iden_eff_weights = inputs
+        pred = self.forward_single_protein(pw_encodings_group, iden_eff_weights, False)[0]
+        return self.softmax_func(0.5*(pred + pred.transpose(-1, -2)))
 
