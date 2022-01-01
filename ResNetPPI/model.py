@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-29 03:02:15 pm
+# @Last Modified: 2022-01-01 09:32:03 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -90,18 +90,18 @@ class ResNetPPI(pl.LightningModule):
         cropping_info = {}
         if crop_d and (ref_length > CROP_SIZE):
             crop_idx_x, crop_idx_y = get_random_crop_idx(ref_length, CROP_SIZE)
-            if crop_idx_x <= (ref_length - CROP_SIZE - 1):
+            if crop_idx_x <= (ref_length - CROP_SIZE + 1):
                 idx_i_range = range(crop_idx_x, crop_idx_x+CROP_SIZE)
                 cropping_info['idx_i_range'] = (crop_idx_x, crop_idx_x+CROP_SIZE)
             else:
-                idx_i_range = range(crop_idx_x-CROP_SIZE, crop_idx_x)
-                cropping_info['idx_i_range'] = (crop_idx_x-CROP_SIZE, crop_idx_x)
-            if crop_idx_y <= (ref_length - CROP_SIZE - 1):
+                idx_i_range = range(crop_idx_x-CROP_SIZE+1, crop_idx_x+1)
+                cropping_info['idx_i_range'] = (crop_idx_x-CROP_SIZE+1, crop_idx_x+1)
+            if crop_idx_y <= (ref_length - CROP_SIZE + 1):
                 idx_j_range = range(crop_idx_y, crop_idx_y+CROP_SIZE)
                 cropping_info['idx_j_range'] = (crop_idx_y, crop_idx_y+CROP_SIZE)
             else:
-                idx_j_range = range(crop_idx_y-CROP_SIZE, crop_idx_y)
-                cropping_info['idx_j_range'] = (crop_idx_y-CROP_SIZE, crop_idx_y)
+                idx_j_range = range(crop_idx_y-CROP_SIZE+1, crop_idx_y+1)
+                cropping_info['idx_j_range'] = (crop_idx_y-CROP_SIZE+1, crop_idx_y+1)
             ref_length = CROP_SIZE
         else:
             idx_i_range = range(ref_length)
@@ -173,6 +173,7 @@ class ResNetPPI(pl.LightningModule):
         pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, True)
         l_idx_1 = ref_seq_info_1['obs_mask']
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
+        assert not torch.isinf(loss_1).any()
         self.log('train_loss', loss_1, batch_size=1)
         return loss_1
 

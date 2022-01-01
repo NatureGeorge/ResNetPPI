@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2021-12-28 09:02:40 pm
+# @Last Modified: 2022-01-01 09:22:54 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM, MAX_K
 import re
@@ -145,7 +145,7 @@ def sample_pairwise_aln(pw_msa, max_k: int = MAX_K):
 def get_random_crop_idx(ref_length, crop_size):
     # assert (0 < crop_size) and (crop_size < ref_length)
     return random.sample(tuple(
-        i for i in range(ref_length) if ((i <= (ref_length - crop_size - 1)) or (i >= (crop_size - 1)))), 2)
+        i for i in range(ref_length) if ((i <= (ref_length - crop_size + 1)) or (i >= (crop_size - 1)))), 2)
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:
@@ -282,6 +282,4 @@ def gen_pw_encodings_group(pw_encodings, iden_eff_weights_idx):
         pw_encodings_group = np.stack([pw_encodings[pw_idx] for pw_idx in group], axis=0)
         iden_eff_weights_idx.extend(group)
         yield pw_encodings_group
-
-
 

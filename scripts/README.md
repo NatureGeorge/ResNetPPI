@@ -21,5 +21,10 @@ make_msa.sh $in_fasta $out_dir $CPU $MEM $DB > $out_dir/log/make_msa.stdout 2> $
 ## `msa.py`
 
 ```bash
-nohup python msa.py -pdb_dir ./pdb/data/structures/divided/mmCIF/ -sc_dir ./src -n_cpu 12 -n_mem 16 exp_pdb_464.csv ./wdir > run_msa.out &
+nohup python msa.py -pdb_dir ./pdb/data/structures/divided/mmCIF/ \
+                    -sc_dir ./src \
+                    -n_cpu 10 \
+                    -n_mem 16 \
+                    -n_job 3 \
+                    exp_pdb_464.csv ./wdir > run_msa.out &
 ```
