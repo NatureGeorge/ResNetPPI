@@ -16,7 +16,7 @@
 # @Filename: __init__.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-29 03:11:25 pm
+# @Last Modified: 2022-01-02 10:05:00 pm
 
 # SETTINGS
 ONEHOT_DIM = 22

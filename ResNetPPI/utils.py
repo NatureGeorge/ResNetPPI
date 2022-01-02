@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-01 09:22:54 pm
+# @Last Modified: 2022-01-01 11:33:43 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM, MAX_K
 import re

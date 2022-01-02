@@ -16,7 +16,9 @@
 # @Filename: featuredata.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-15 11:00:07 am
+# @Last Modified: 2022-01-02 09:56:38 pm
+import torch
+from pathlib import Path
 
 # Hydrophobic residues and hydrophilic residues were classified according to the ordering of hydrophobicity in the following paper.:
 # Miyazawa, S., & Jernigan, R. L. (1996). 
@@ -27,3 +29,14 @@
 hydrophobic_group = (0, 4, 9, 10, 12, 13, 17, 18, 19) # seq order: ARNDCQEGHILKMFPSTWYV
 hydrophilic_group = tuple(i for i in range(20) if i not in hydrophobic_group)
 hydrophobic_bool_tab = dict(tuple(zip(hydrophobic_group, [1]*len(hydrophobic_group)))+tuple(zip(hydrophilic_group, [0]*len(hydrophilic_group))))
+
+dir = Path(__file__).parent.absolute()
+demo_input_for_gen_coevolution_aggregator = (
+    torch.load(dir/'data/iden_eff_weights.pt'),
+    torch.load(dir/'data/msa_embeddings.pt'),
+    64,
+    torch.load(dir/'data/meshgrid.pt'),
+    torch.load(dir/'data/record_idx.pt'),
+    torch.load(dir/'data/record_mask.pt')
+)
+

@@ -16,7 +16,7 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-01 09:31:29 pm
+# @Last Modified: 2022-01-02 10:06:30 pm
 from torch.utils.data import Dataset
 from ResNetPPI import DIST_CUTOFF
 from ResNetPPI.msa import *
@@ -50,6 +50,7 @@ class SeqStructDataset(Dataset):
         xyz_1 = get_representative_xyz(gemmi_obj[MODEL_ID].get_subchain(pdb_binary_int.chain_1.struct_asym_id))
         idx_1, dist6d_1 = get_dist6d(xyz_1, DIST_CUTOFF)
         label_dist6d_1 = get_label_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False)
+        # binned_dist6d_1 = get_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False)
         loading_a3m_1 = load_pairwise_aln_from_a3m(msa_file_1)
         ref_seq_info_1 = next(loading_a3m_1)
         pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1))
@@ -60,7 +61,7 @@ class SeqStructDataset(Dataset):
         # assert len(iden_eff_weights_idx_1) == len(iden_eff_weights_1)
         iden_eff_weights_1 = iden_eff_weights_1[iden_eff_weights_idx_1]
         # assert sum(i.shape[0] for i in pw_encodings_group_1) == iden_eff_weights_1.shape[0]
-        return ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1
+        return ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1#, binned_dist6d_1
         #xyz_2 = get_representative_xyz(gemmi_obj[MODEL_ID].get_subchain(pdb_binary_int.chain_2.struct_asym_id))
         #idx_2, dist6d_2 = get_dist6d(xyz_2, DIST_CUTOFF)
         #idx_12, dist6d_12 = get_dist6d_2(xyz_2, xyz_1, DIST_CUTOFF)
