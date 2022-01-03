@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-01 11:33:43 pm
+# @Last Modified: 2022-01-03 10:48:20 am
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM, MAX_K
 import re
@@ -145,7 +145,7 @@ def sample_pairwise_aln(pw_msa, max_k: int = MAX_K):
 def get_random_crop_idx(ref_length, crop_size):
     # assert (0 < crop_size) and (crop_size < ref_length)
     return random.sample(tuple(
-        i for i in range(ref_length) if ((i <= (ref_length - crop_size + 1)) or (i >= (crop_size - 1)))), 2)
+        i for i in range(ref_length) if ((i <= (ref_length - crop_size)) or (i >= (crop_size - 1)))), 2)
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:
