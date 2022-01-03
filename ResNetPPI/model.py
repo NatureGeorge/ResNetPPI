@@ -16,11 +16,12 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-03 03:03:01 pm
+# @Last Modified: 2022-01-03 03:43:01 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
-from ResNetPPI import ENCODE_DIM, CROP_SIZE
+from typing import List
+from ResNetPPI import ENCODE_DIM, CROP_SIZE, CHUNK_SIZE
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
 from ResNetPPI.featuredata import demo_input_for_gen_coevolution_aggregator, loaded_gen_coevolution_aggregator
@@ -69,7 +70,27 @@ def handle_cropping(ref_length: int, crop_d: bool):
     return cropping_info, idx_i_range.shape[0], meshgrid, torch.as_tensor(ij_record_idx), torch.as_tensor(ij_record_mask)
 
 
-def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int, meshgrid, record_idx, record_mask):
+def coevolution_aggregator_unit(cur_meshgrid, msa_embeddings, iden_eff_weights, m_eff, coevo_couplings, one_body_term, idx_idx):
+    cur_meshgrid_idx = cur_meshgrid[idx_idx]
+    idx_i = cur_meshgrid_idx[0]
+    idx_j = cur_meshgrid_idx[1]
+    use_idx_i = cur_meshgrid_idx[2]
+    use_idx_j = cur_meshgrid_idx[3]
+    x_k_i = msa_embeddings[idx_i]
+    x_k_j = msa_embeddings[idx_j]
+    # Two-Body Term: $C \times C$
+    ## $(K \times C) \otimes (K \times C)$ -> $K \times C \times C$
+    x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j)
+    ## $(1 \times K) \times (C \times K \times C)$ -> $C \times C$
+    ### two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
+    two_body_term_ij = (iden_eff_weights @ x_k_ij) / m_eff
+    ## $C + C + C^2$
+    coevo_couplings[0, use_idx_i, use_idx_j, :64] = one_body_term[idx_i]
+    coevo_couplings[0, use_idx_i, use_idx_j, 64:128] = one_body_term[idx_j]
+    coevo_couplings[0, use_idx_i, use_idx_j, 128:] = two_body_term_ij.flatten()
+
+
+def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int, meshgrid, record_idx, record_mask, chunksize: int = CHUNK_SIZE):
     msa_embeddings = msa_embeddings.transpose(0, 1)
     # Weights: $1 \times K$
     m_eff = iden_eff_weights.sum()
@@ -81,24 +102,15 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
     # Aggregating
     coevo_couplings = torch.zeros((1, cur_length, cur_length, 4224), dtype=msa_embeddings.dtype, device=msa_embeddings.device)
     cur_meshgrid = meshgrid[record_mask]
-    for idx_idx in range(cur_meshgrid.shape[0]):
-        cur_meshgrid_idx = cur_meshgrid[idx_idx]
-        idx_i = cur_meshgrid_idx[0]
-        idx_j = cur_meshgrid_idx[1]
-        use_idx_i = cur_meshgrid_idx[2]
-        use_idx_j = cur_meshgrid_idx[3]
-        x_k_i = msa_embeddings[idx_i]
-        x_k_j = msa_embeddings[idx_j]
-        # Two-Body Term: $C \times C$
-        ## $(K \times C) \otimes (K \times C)$ -> $K \times C \times C$
-        x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j)
-        ## $(1 \times K) \times (C \times K \times C)$ -> $C \times C$
-        ### two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
-        two_body_term_ij = (iden_eff_weights @ x_k_ij) / m_eff
-        ## $C + C + C^2$
-        coevo_couplings[0, use_idx_i, use_idx_j, :64] = one_body_term[idx_i]
-        coevo_couplings[0, use_idx_i, use_idx_j, 64:128] = one_body_term[idx_j]
-        coevo_couplings[0, use_idx_i, use_idx_j, 128:] = two_body_term_ij.flatten()
+    for chunk_idx in range(0, cur_meshgrid.shape[0], chunksize):
+        futures: List[torch.jit.Future[None]] = []
+        for idx_idx in range(chunk_idx, min(cur_meshgrid.shape[0], chunk_idx+chunksize)):
+            futures.append(torch.jit.fork(coevolution_aggregator_unit,
+                                          cur_meshgrid, msa_embeddings,
+                                          iden_eff_weights, m_eff, coevo_couplings,
+                                          one_body_term, idx_idx))
+        for future in futures:
+            torch.jit.wait(future)
     cur_meshgrid = meshgrid[~record_mask]
     for idx_idx in range(cur_meshgrid.shape[0]):
         cur_meshgrid_idx = cur_meshgrid[idx_idx]
