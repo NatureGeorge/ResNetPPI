@@ -16,13 +16,14 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-03 11:14:53 am
+# @Last Modified: 2022-01-03 02:53:51 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
 from ResNetPPI import ENCODE_DIM, CROP_SIZE
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
+from ResNetPPI.featuredata import demo_input_for_gen_coevolution_aggregator, loaded_gen_coevolution_aggregator
 
 
 def handle_cropping(ref_length: int, crop_d: bool):
@@ -111,26 +112,25 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
 
 
 class ResNetPPI(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, cuda: bool = False, half: bool = False):
         super().__init__()
+        self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*18)
         self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
-        """
-        if half:
-            iden_eff_weights, msa_embeddings, cur_length, meshgrid, record_idx, record_mask = demo_input_for_gen_coevolution_aggregator
-            demo_input = (iden_eff_weights.half(), msa_embeddings.half(), cur_length, meshgrid, record_idx, record_mask)
+        if loaded_gen_coevolution_aggregator is not None:
+            self.gen_coevolution_aggregator = loaded_gen_coevolution_aggregator
         else:
-            demo_input = demo_input_for_gen_coevolution_aggregator
-        self.gen_coevolution_aggregator = torch.jit.script(gen_coevolution_aggregator, example_inputs=[demo_input])
-        """
+            self.gen_coevolution_aggregator = torch.jit.script(
+                gen_coevolution_aggregator,
+                example_inputs=demo_input_for_gen_coevolution_aggregator(cuda, half))
     
         
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
 
     '''
@@ -168,7 +168,7 @@ class ResNetPPI(pl.LightningModule):
         msa_embeddings = self.get_msa_embeddings(pw_encodings_group)
         cropping_info, cur_length, meshgrid, record_idx, record_mask = handle_cropping(msa_embeddings.shape[2], crop_d)
         # TODO: optimization for symmetric tensors
-        coevo_couplings = gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length, meshgrid, record_idx, record_mask)
+        coevo_couplings = self.gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length, meshgrid, record_idx, record_mask)
         r2s = self.resnet2d(coevo_couplings.movedim(3, 1))
         return self.conv2d_37(r2s), cropping_info
 
