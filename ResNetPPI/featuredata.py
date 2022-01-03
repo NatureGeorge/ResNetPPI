@@ -16,7 +16,7 @@
 # @Filename: featuredata.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-03 02:52:50 pm
+# @Last Modified: 2022-01-03 03:01:52 pm
 import torch
 from pathlib import Path
 
@@ -66,5 +66,5 @@ def demo_input_for_gen_coevolution_aggregator(cuda: bool, half: bool):
 
 
 gen_coevolution_aggregator_path = dir/'data/gen_coevolution_aggregator.pt'
-loaded_gen_coevolution_aggregator = torch.jit.load(gen_coevolution_aggregator_path) if gen_coevolution_aggregator_path.exists() else None
+loaded_gen_coevolution_aggregator = (gen_coevolution_aggregator_path, torch.jit.load(gen_coevolution_aggregator_path)) if gen_coevolution_aggregator_path.exists() else (gen_coevolution_aggregator_path, None)
 

@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-03 02:53:51 pm
+# @Last Modified: 2022-01-03 03:03:01 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -112,7 +112,7 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
 
 
 class ResNetPPI(pl.LightningModule):
-    def __init__(self, cuda: bool = False, half: bool = False):
+    def __init__(self, cuda: bool = False, half: bool = False, cache: bool = True):
         super().__init__()
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])
@@ -121,12 +121,13 @@ class ResNetPPI(pl.LightningModule):
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
-        if loaded_gen_coevolution_aggregator is not None:
-            self.gen_coevolution_aggregator = loaded_gen_coevolution_aggregator
+        if cache and (loaded_gen_coevolution_aggregator[1] is not None):
+            self.gen_coevolution_aggregator = loaded_gen_coevolution_aggregator[1]
         else:
             self.gen_coevolution_aggregator = torch.jit.script(
                 gen_coevolution_aggregator,
                 example_inputs=demo_input_for_gen_coevolution_aggregator(cuda, half))
+            self.gen_coevolution_aggregator.save(loaded_gen_coevolution_aggregator[0])
     
         
     def configure_optimizers(self):
