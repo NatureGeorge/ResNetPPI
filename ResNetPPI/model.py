@@ -16,14 +16,13 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-04 04:33:05 pm
+# @Last Modified: 2022-01-04 09:05:45 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
 from ResNetPPI import ENCODE_DIM, CROP_SIZE
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
-from ResNetPPI.featuredata import demo_input_for_gen_coevolution_aggregator, loaded_gen_coevolution_aggregator
 
 
 def handle_cropping(ref_length: int, crop_d: bool):
@@ -91,10 +90,10 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
         x_k_j = msa_embeddings[idx_j]
         # Two-Body Term: $C \times C$
         ## $(K \times C) \otimes (K \times C)$ -> $K \times C \times C$
-        x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j)
+        x_k_ij = torch.einsum('ki,kj->ikj', x_k_i, x_k_j/m_eff)
         ## $(1 \times K) \times (C \times K \times C)$ -> $C \times C$
         ### two_body_term_ij = torch.matmul(iden_eff_weights, x_k_ij)/m_eff
-        two_body_term_ij = iden_eff_weights @ (x_k_ij/m_eff)
+        two_body_term_ij = iden_eff_weights @ x_k_ij
         ## $C + C + C^2$
         coevo_couplings[0, use_idx_i, use_idx_j, :64] = one_body_term[idx_i]
         coevo_couplings[0, use_idx_i, use_idx_j, 64:128] = one_body_term[idx_j]
@@ -116,11 +115,13 @@ class ResNetPPI(pl.LightningModule):
         super().__init__()
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])
-        self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*9) # 18
+        self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*4) # 18
         self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
+        self.gen_coevolution_aggregator = gen_coevolution_aggregator
+        """
         if cache and (loaded_gen_coevolution_aggregator[1] is not None):
             self.gen_coevolution_aggregator = loaded_gen_coevolution_aggregator[1]
         else:
@@ -128,6 +129,7 @@ class ResNetPPI(pl.LightningModule):
                 gen_coevolution_aggregator,
                 example_inputs=demo_input_for_gen_coevolution_aggregator(cuda, half))
             self.gen_coevolution_aggregator.save(loaded_gen_coevolution_aggregator[0])
+        """
     
         
     def configure_optimizers(self):

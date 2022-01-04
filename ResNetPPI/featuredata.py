@@ -16,7 +16,7 @@
 # @Filename: featuredata.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-03 03:36:48 pm
+# @Last Modified: 2022-01-04 09:06:39 pm
 import torch
 from pathlib import Path
 
@@ -43,20 +43,20 @@ def demo_input_for_gen_coevolution_aggregator(cuda: bool, half: bool):
             torch.load(dir/'data/meshgrid_1.pt'),
             torch.load(dir/'data/record_idx_1.pt'),
             torch.load(dir/'data/record_mask_1.pt')],
-        [
-            torch.load(dir/'data/iden_eff_weights_2.pt'),
-            torch.load(dir/'data/msa_embeddings_2.pt'),
-            128,
-            torch.load(dir/'data/meshgrid_2.pt'),
-            torch.load(dir/'data/record_idx_2.pt'),
-            torch.load(dir/'data/record_mask_2.pt')],
-        [
-            torch.load(dir/'data/iden_eff_weights_3.pt'),
-            torch.load(dir/'data/msa_embeddings_3.pt'),
-            128,
-            torch.load(dir/'data/meshgrid_3.pt'),
-            torch.load(dir/'data/record_idx_3.pt'),
-            torch.load(dir/'data/record_mask_3.pt')],
+        #[
+        #    torch.load(dir/'data/iden_eff_weights_2.pt'),
+        #    torch.load(dir/'data/msa_embeddings_2.pt'),
+        #    128,
+        #    torch.load(dir/'data/meshgrid_2.pt'),
+        #    torch.load(dir/'data/record_idx_2.pt'),
+        #    torch.load(dir/'data/record_mask_2.pt')],
+        #[
+        #    torch.load(dir/'data/iden_eff_weights_3.pt'),
+        #    torch.load(dir/'data/msa_embeddings_3.pt'),
+        #    128,
+        #    torch.load(dir/'data/meshgrid_3.pt'),
+        #    torch.load(dir/'data/record_idx_3.pt'),
+        #    torch.load(dir/'data/record_mask_3.pt')],
     ]
     if cuda:
         demo = [[a.cuda() if not isinstance(a, int) else a for a in args] for args in demo]
