@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-04 09:05:45 pm
+# @Last Modified: 2022-01-04 09:29:56 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -98,6 +98,8 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
         coevo_couplings[0, use_idx_i, use_idx_j, :64] = one_body_term[idx_i]
         coevo_couplings[0, use_idx_i, use_idx_j, 64:128] = one_body_term[idx_j]
         coevo_couplings[0, use_idx_i, use_idx_j, 128:] = two_body_term_ij.flatten()
+    del x_k_ij, one_body_term, two_body_term_ij
+    torch.cuda.empty_cache()
     cur_meshgrid = meshgrid[~record_mask]
     for idx_idx in range(cur_meshgrid.shape[0]):
         cur_meshgrid_idx = cur_meshgrid[idx_idx]
