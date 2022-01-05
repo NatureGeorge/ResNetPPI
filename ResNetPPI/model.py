@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-04 09:29:56 pm
+# @Last Modified: 2022-01-05 12:58:40 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -25,13 +25,13 @@ from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
 
 
-def handle_cropping(ref_length: int, crop_d: bool):
+def handle_cropping(ref_length: int, crop_d: bool, obs_idx: list):
     '''
     Handle Cropping
     '''
     cropping_info = {}
     if crop_d and (ref_length > CROP_SIZE):
-        crop_idx_x, crop_idx_y = get_random_crop_idx(ref_length, CROP_SIZE)
+        crop_idx_x, crop_idx_y = get_random_crop_idx(ref_length, CROP_SIZE, obs_idx)
         if crop_idx_x <= (ref_length - CROP_SIZE):
             idx_i_range = torch.arange(crop_idx_x, crop_idx_x+CROP_SIZE)
             cropping_info['idx_i_range'] = (crop_idx_x, crop_idx_x+CROP_SIZE)
@@ -118,7 +118,12 @@ class ResNetPPI(pl.LightningModule):
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*4) # 18
-        self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
+        self.conv2d_37 = nn.Sequential(
+            nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(37),
+            nn.ELU(inplace=True),
+        )
+        # self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
         # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
@@ -168,10 +173,10 @@ class ResNetPPI(pl.LightningModule):
     def get_msa_embeddings(self, pw_encodings_group):
         return torch.cat(tuple(self.gen_pw_embedding_group(pw_encodings_group)))
 
-    def forward_single_protein(self, pw_encodings_group, iden_eff_weights, crop_d: bool):
+    def forward_single_protein(self, pw_encodings_group, iden_eff_weights, obs_idx, crop_d: bool):
         # MSA Embeddings: $K \times C \times L$
         msa_embeddings = self.get_msa_embeddings(pw_encodings_group)
-        cropping_info, cur_length, meshgrid, record_idx, record_mask = handle_cropping(msa_embeddings.shape[2], crop_d)
+        cropping_info, cur_length, meshgrid, record_idx, record_mask = handle_cropping(msa_embeddings.shape[2], crop_d, obs_idx)
         coevo_couplings = self.gen_coevolution_aggregator(iden_eff_weights.to(msa_embeddings.dtype), msa_embeddings, cur_length, meshgrid, record_idx, record_mask)
         r2s = self.resnet2d(coevo_couplings.movedim(3, 1))
         return self.conv2d_37(r2s), cropping_info
@@ -194,24 +199,26 @@ class ResNetPPI(pl.LightningModule):
             t_l_idx_j = t_l_idx[mask_j]
             target = target[:, t_l_idx_i, :][:, :, t_l_idx_j]
         assert pred.shape[-1] > 0 and pred.shape[-2] > 0
-        return self.loss_func(self.softmax_func(pred), target)
+        return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):
         ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = train_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, True)
         l_idx_1 = ref_seq_info_1['obs_mask']
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, l_idx_1.tolist(), True)
+        assert not torch.isinf(pred_dist6d_1).any()
+        assert not torch.isnan(pred_dist6d_1).any()
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
         assert not torch.isinf(loss_1).any()
         assert not torch.isnan(loss_1).any()
-        self.log('train_loss', loss_1, batch_size=1)
+        self.log('train_loss', loss_1, batch_size=1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss_1
 
     def validation_step(self, val_batch, batch_idx):
         ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = val_batch
-        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, True)
         l_idx_1 = ref_seq_info_1['obs_mask']
+        pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, l_idx_1.tolist(), True)
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
-        self.log('val_loss', loss_1, batch_size=1)
+        self.log('val_loss', loss_1, batch_size=1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss_1
 
     def forward(self, inputs):
