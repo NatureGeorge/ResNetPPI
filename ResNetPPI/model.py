@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-05 12:58:40 pm
+# @Last Modified: 2022-01-05 08:44:54 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -113,7 +113,7 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
 
 
 class ResNetPPI(pl.LightningModule):
-    def __init__(self, cuda: bool = False, half: bool = False, cache: bool = True):
+    def __init__(self):
         super().__init__()
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM, [8])
@@ -129,6 +129,7 @@ class ResNetPPI(pl.LightningModule):
         self.loss_func = nn.CrossEntropyLoss()
         self.gen_coevolution_aggregator = gen_coevolution_aggregator
         """
+        cuda: bool = False, half: bool = False, cache: bool = True
         if cache and (loaded_gen_coevolution_aggregator[1] is not None):
             self.gen_coevolution_aggregator = loaded_gen_coevolution_aggregator[1]
         else:
@@ -210,7 +211,7 @@ class ResNetPPI(pl.LightningModule):
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
         assert not torch.isinf(loss_1).any()
         assert not torch.isnan(loss_1).any()
-        self.log('train_loss', loss_1, batch_size=1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss_1, batch_size=1, on_step=True, on_epoch=True)
         return loss_1
 
     def validation_step(self, val_batch, batch_idx):
@@ -218,7 +219,7 @@ class ResNetPPI(pl.LightningModule):
         l_idx_1 = ref_seq_info_1['obs_mask']
         pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, l_idx_1.tolist(), True)
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
-        self.log('val_loss', loss_1, batch_size=1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_loss', loss_1, batch_size=1, on_step=True, on_epoch=True)
         return loss_1
 
     def forward(self, inputs):

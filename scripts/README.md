@@ -28,3 +28,9 @@ nohup python msa.py -pdb_dir ./pdb/data/structures/divided/mmCIF/ \
                     -n_job 3 \
                     exp_pdb_464.csv ./wdir > run_msa.out &
 ```
+
+## `training_pipeline.py`
+
+```bash
+python training_pipeline -h
+```
