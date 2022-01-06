@@ -32,5 +32,11 @@ nohup python msa.py -pdb_dir ./pdb/data/structures/divided/mmCIF/ \
 ## `training_pipeline.py`
 
 ```bash
-python training_pipeline -h
+python training_pipeline.py -h
+```
+
+## `inference_pipeline.py`
+
+```bash
+python inference_pipeline.py -h
 ```

@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-05 08:44:54 pm
+# @Last Modified: 2022-01-06 03:35:19 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -225,6 +225,6 @@ class ResNetPPI(pl.LightningModule):
     def forward(self, inputs):
         # NOTE: for prediction/inference actions
         pw_encodings_group, iden_eff_weights = inputs
-        pred = self.forward_single_protein(pw_encodings_group, iden_eff_weights, False)[0]
+        pred = self.forward_single_protein(pw_encodings_group, iden_eff_weights, [], False)[0]
         return self.softmax_func(0.5*(pred + pred.transpose(-1, -2)))
 

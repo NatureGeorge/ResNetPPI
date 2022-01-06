@@ -16,9 +16,9 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-02 10:06:30 pm
+# @Last Modified: 2022-01-06 03:41:43 pm
 from torch.utils.data import Dataset
-from ResNetPPI import DIST_CUTOFF
+from ResNetPPI import DIST_CUTOFF, MAX_K
 from ResNetPPI.msa import *
 from ResNetPPI.utils import (get_representative_xyz,
                              get_dist6d,
@@ -32,10 +32,11 @@ from ResNetPPI.utils import (get_representative_xyz,
 
 
 class SeqStructDataset(Dataset):
-    def __init__(self, pdb_list, msa_dir, pdb_dir, **kwargs):
+    def __init__(self, pdb_list, msa_dir, pdb_dir, max_k: int = MAX_K, **kwargs):
         self.dataframe = read_csv(pdb_list, dtype=str, keep_default_na=False, **kwargs)
         self.msa_dir = Path(msa_dir)
         self.pdb_dir = Path(pdb_dir)
+        self.max_k = max_k
 
     def __len__(self):
         return self.dataframe.shape[0]
@@ -53,7 +54,7 @@ class SeqStructDataset(Dataset):
         # binned_dist6d_1 = get_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False)
         loading_a3m_1 = load_pairwise_aln_from_a3m(msa_file_1)
         ref_seq_info_1 = next(loading_a3m_1)
-        pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1))
+        pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1), self.max_k)
         iden_eff_weights_1 = get_eff_weights(pw_msa_1)[1:]
         pw_encodings_1 = tuple(onehot_encoding(pw_aln) for pw_aln in pw_msa_1)
         iden_eff_weights_idx_1 = []

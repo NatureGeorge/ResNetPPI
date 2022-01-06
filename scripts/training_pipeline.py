@@ -16,7 +16,7 @@
 # @Filename: training_pipeline.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-05 08:59:53 pm
+# @Last Modified: 2022-01-06 04:28:25 pm
 import argparse
 import sys
 from pathlib import Path
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('-gpus', type=str, required=False, dest='gpus', default="1", help='list of GPU (comma-seperate) to use during training.')
     parser.add_argument('-max_epochs', type=int, required=False, dest='max_epochs', default=20, help='number of epochs.')
     parser.add_argument('-precision', type=int, required=False, dest='precision', default=16, help='precision')
-    parser.add_argument('-checkpoint_dir', type=str, required=False, dest='checkpoint_dir', default='', help='precision')
+    parser.add_argument('-checkpoint_dir', type=str, required=False, dest='checkpoint_dir', default='', help='location of trained weights')
     args = parser.parse_args()
     sys.path.append(str(Path(args.src_dir).absolute()))
     from ResNetPPI.model import ResNetPPI

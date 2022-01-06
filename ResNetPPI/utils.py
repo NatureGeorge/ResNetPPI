@@ -16,9 +16,9 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-05 12:22:34 am
+# @Last Modified: 2022-01-06 04:09:08 pm
 from ResNetPPI.coords6d import *
-from ResNetPPI import ONEHOT_DIM, ENCODE_DIM, MAX_K
+from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
 import re
 import json
 import zlib
@@ -134,7 +134,7 @@ def gen_ref_msa_from_pairwise_aln(pw_msa):
     return ref_msa
 
 
-def sample_pairwise_aln(pw_msa, max_k: int = MAX_K):
+def sample_pairwise_aln(pw_msa, max_k: int):
     cur_k = len(pw_msa)
     assert cur_k > 0
     if cur_k <= max_k:
@@ -216,6 +216,21 @@ def get_bins_tex(size_bins: float, v_min: float, v_max: float, init='$[0,2) \cup
             cur = v_min + size_bins * (bin_i-1)
             cur_next = v_min + size_bins * bin_i
             bins.append(f'$[{cur},{cur_next})$')
+        bins.append(init)
+    return bins
+
+
+def get_bins_weights(size_bins: float, v_min: float, v_max: float, init=0, non_contact_at_first:bool=True):
+    assert v_max > v_min and size_bins > 0
+    num_bins = round((v_max - v_min) / size_bins) + 1
+    if non_contact_at_first:
+        bins = [init]
+        for bin_i in range(1, num_bins):
+            bins.append(v_min + size_bins * (bin_i-.5))
+    else:
+        bins = []
+        for bin_i in range(1, num_bins):
+            bins.append(v_min + size_bins * (bin_i-.5))
         bins.append(init)
     return bins
 
