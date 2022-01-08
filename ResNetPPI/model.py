@@ -16,11 +16,11 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-06 03:35:19 pm
+# @Last Modified: 2022-01-08 12:51:59 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
-from ResNetPPI import ENCODE_DIM, CROP_SIZE
+from ResNetPPI import ENCODE_DIM, HYDRO_DIM, CROP_SIZE
 from ResNetPPI.net import ResNet1D, ResNet2D
 from ResNetPPI.utils import get_random_crop_idx
 
@@ -116,7 +116,7 @@ class ResNetPPI(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.learning_rate = 1e-3
-        self.resnet1d = ResNet1D(ENCODE_DIM, [8])
+        self.resnet1d = ResNet1D(ENCODE_DIM+HYDRO_DIM, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*4) # 18
         self.conv2d_37 = nn.Sequential(
             nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False),

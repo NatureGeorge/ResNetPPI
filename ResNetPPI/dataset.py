@@ -16,7 +16,7 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-06 03:41:43 pm
+# @Last Modified: 2022-01-08 02:04:52 pm
 from torch.utils.data import Dataset
 from ResNetPPI import DIST_CUTOFF, MAX_K
 from ResNetPPI.msa import *
@@ -28,7 +28,8 @@ from ResNetPPI.utils import (get_representative_xyz,
                              sample_pairwise_aln,
                              get_eff_weights,
                              onehot_encoding,
-                             gen_pw_encodings_group)
+                             gen_pw_encodings_group,
+                             add_hydro_encoding)
 
 
 class SeqStructDataset(Dataset):
@@ -56,7 +57,7 @@ class SeqStructDataset(Dataset):
         ref_seq_info_1 = next(loading_a3m_1)
         pw_msa_1 = sample_pairwise_aln(tuple(loading_a3m_1), self.max_k)
         iden_eff_weights_1 = get_eff_weights(pw_msa_1)[1:]
-        pw_encodings_1 = tuple(onehot_encoding(pw_aln) for pw_aln in pw_msa_1)
+        pw_encodings_1 = tuple(add_hydro_encoding(onehot_encoding(pw_aln)) for pw_aln in pw_msa_1)
         iden_eff_weights_idx_1 = []
         pw_encodings_group_1 = tuple(gen_pw_encodings_group(pw_encodings_1, iden_eff_weights_idx_1))
         # assert len(iden_eff_weights_idx_1) == len(iden_eff_weights_1)

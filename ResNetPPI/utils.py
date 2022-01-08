@@ -16,9 +16,10 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-06 04:09:08 pm
+# @Last Modified: 2022-01-08 02:04:36 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
+from ResNetPPI.featuredata import hydrophobic_group, hydrophilic_group
 import re
 import json
 import zlib
@@ -281,10 +282,16 @@ def get_eff_weights(pw_msa):
 ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
 
 
-def onehot_encoding(aln: np.ndarray):
+def onehot_encoding(aln: np.ndarray) -> np.ndarray:
     encoding = ONEHOT[aln].transpose((0, 2, 1))
     encoding = encoding.reshape(-1, encoding.shape[-1])
     return encoding.reshape(ENCODE_DIM, -1)
+
+
+def add_hydro_encoding(encoding: np.ndarray) -> np.ndarray:
+    mask_hydrophobic = (encoding[hydrophobic_group].sum(axis=0) > 0).astype(np.float32).reshape(1, -1)
+    mask_hydrophilic = (encoding[hydrophilic_group].sum(axis=0) > 0).astype(np.float32).reshape(1, -1)
+    return np.concatenate((encoding, mask_hydrophobic, mask_hydrophilic), axis=0)
 
 
 def gen_pw_encodings_group(pw_encodings, iden_eff_weights_idx):
