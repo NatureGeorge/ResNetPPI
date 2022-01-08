@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-08 03:39:31 pm
+# @Last Modified: 2022-01-08 07:01:19 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
 from ResNetPPI.featuredata import hydrophobic_group, hydrophilic_group, hydrophobic_group_hmo, hydrophilic_group_hmo
@@ -27,14 +27,13 @@ import random
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
-import logging
 import numba
 import scipy.special
 
-CONSOLE = logging.StreamHandler()
-CONSOLE.setLevel(logging.WARNING)
-LOGGER = logging.getLogger('ZZFLog')
-LOGGER.addHandler(CONSOLE)
+#CONSOLE = logging.StreamHandler()
+#CONSOLE.setLevel(logging.WARNING)
+#LOGGER = logging.getLogger('ZZFLog')
+#LOGGER.addHandler(CONSOLE)
 
 
 def gen_res_idx_range(obs_index):
@@ -52,35 +51,49 @@ def get_res_idx_range(obs_index):
     return res_idxes, missing_segs
 
 
-def get_real_or_virtual_CB(res, gly_ca: bool = True):
+def check_anchor_atoms(res, gly_ca: bool = True):
     if res.name != 'GLY':
-        try:
-            return res['CB'][0].pos.tolist()
-        except Exception:
-            LOGGER.debug(f"no CB for {res}")
+        has_cb = 'CB' in res
+        if has_cb:
+            return True
     else:
         if gly_ca:
-            try:
-                return res['CA'][0].pos.tolist()
-            except Exception as e:
-                LOGGER.error(f"no CA for {res}")
-                raise e
-    try:
-        Ca = res['CA'][0].pos
-        b = Ca - res['N'][0].pos
-        c = res['C'][0].pos - Ca
-    except Exception as e:
-        LOGGER.error(f"no enough anchor atoms for {res}")
-        raise e
+            return 'CA' in res
+    has_ca = 'CA' in res
+    has_n = 'N' in res
+    has_c = 'C' in res
+    return has_ca and has_n and has_c
+
+
+def get_real_or_virtual_CB(res, gly_ca: bool = True):
+    if res.name != 'GLY':
+        #try:
+        return res['CB'][0].pos.tolist()
+        #except Exception:
+        #    LOGGER.debug(f"no CB for {res}")
+    else:
+        if gly_ca:
+            #try:
+            return res['CA'][0].pos.tolist()
+            #except Exception as e:
+            #    LOGGER.error(f"no CA for {res}")
+            #    raise e
+    #try:
+    Ca = res['CA'][0].pos
+    b = Ca - res['N'][0].pos
+    c = res['C'][0].pos - Ca
+    #except Exception as e:
+    #    LOGGER.error(f"no enough anchor atoms for {res}")
+    #    raise e
     a = b.cross(c)
     return (-0.58273431*a + 0.56802827*b - 0.54067466*c + Ca).tolist()
 
 
 def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = True, dtype=np.float32):
     if representative_atom == 'CB':
-        xyz = np.array([get_real_or_virtual_CB(res, gly_ca) for res in chain_obj], dtype=dtype)
+        xyz = np.array([get_real_or_virtual_CB(res, gly_ca) for res in chain_obj if check_anchor_atoms(res, gly_ca)], dtype=dtype)
     elif representative_atom == 'CA':
-        xyz = np.array([res['CA'][0].pos.tolist() for res in chain_obj], dtype=dtype)
+        xyz = np.array([res['CA'][0].pos.tolist() for res in chain_obj if 'CA' in res], dtype=dtype)
     else:
         return
     assert xyz.shape[0] == chain_obj.length(), "Missing anchor atoms!"
@@ -99,6 +112,7 @@ def aa2index(seq):
 
 def load_pairwise_aln_from_a3m(path):
     with Path(path).open('rt') as handle:
+        with_hmo = False
         ref_seq_info = json.loads(next(handle)[1:])
         ref_seq_info['obs_mask'] = np.where(np.array(list(zlib.decompress(eval(
                 ref_seq_info['obs_mask'])).decode('utf-8')), dtype=np.uint8))[0]
@@ -109,6 +123,7 @@ def load_pairwise_aln_from_a3m(path):
         aa2index(ref_seq_vec)
         for line in handle:
             if line.startswith('>'):
+                with_hmo = True
                 continue
             oth_seq = line.rstrip()
             mask_insertion = np.array([False if aa.isupper() or aa == '-' else True for aa in oth_seq])
@@ -123,6 +138,8 @@ def load_pairwise_aln_from_a3m(path):
                 aa2index(oth_seq_vec)
                 # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
                 yield np.asarray([ref_seq_vec, oth_seq_vec])
+        if not with_hmo:
+            yield np.asarray([ref_seq_vec, np.full_like(ref_seq_vec, 21)])
 
 
 def gen_ref_msa_from_pairwise_aln(pw_msa):
@@ -285,7 +302,10 @@ ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
 def onehot_encoding(aln: np.ndarray) -> np.ndarray:
     encoding = ONEHOT[aln].transpose((0, 2, 1))
     encoding = encoding.reshape(-1, encoding.shape[-1])
-    return encoding.reshape(ENCODE_DIM, -1)
+    ret = encoding.reshape(ENCODE_DIM, -1)
+    if (ret[43] > 0).all():
+        ret[43] = 0
+    return ret
 
 
 def add_hydro_encoding(encoding: np.ndarray) -> np.ndarray:

@@ -16,7 +16,7 @@
 # @Filename: msa.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2021-12-25 03:57:14 pm
+# @Last Modified: 2022-01-08 05:42:19 pm
 import os
 import datetime
 import argparse
@@ -45,6 +45,20 @@ def prepare_input_seq_and_folder(folder, seq_header, seq):
     return fasta_file
 
 
+def check_anchor_atoms(res):
+    if res.name != 'GLY':
+        has_cb = 'CB' in res
+        if has_cb:
+            return True
+        else:
+            has_ca = 'CA' in res
+            has_n = 'N' in res
+            has_c = 'C' in res
+            return has_ca and has_n and has_c
+    else:
+        return 'CA' in res
+
+
 def running_msa_pipeline(args):
     dataframe = read_csv(args.pdb_list, dtype=str, keep_default_na=False, chunksize=300)
     for dataset in dataframe:
@@ -64,7 +78,7 @@ def running_msa_pipeline(args):
                     res_i_beg = chain_obj[0].label_seq
                     res_i_end = chain_obj[-1].label_seq
                     obs_mask = np.zeros(res_i_end-res_i_beg+1, dtype=np.uint8)
-                    obs_mask[[(res_i.label_seq-res_i_beg) for res_i in chain_obj]] = 1
+                    obs_mask[[(res_i.label_seq-res_i_beg) for res_i in chain_obj if check_anchor_atoms(res_i)]] = 1
                     prepare_input_seq_and_folder(chain_wdir,
                         json.dumps(dict(
                             pdb_id=record.pdb_id,
