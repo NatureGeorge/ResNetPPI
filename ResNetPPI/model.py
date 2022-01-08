@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-08 12:51:59 pm
+# @Last Modified: 2022-01-08 03:42:38 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -123,8 +123,11 @@ class ResNetPPI(pl.LightningModule):
             nn.BatchNorm2d(37),
             nn.ELU(inplace=True),
         )
-        # self.conv2d_37 = nn.Conv2d(96, 37, kernel_size=3, padding=1)
-        # self.conv2d_41 = nn.Conv2d(96, 41, kernel_size=3, padding=1)
+        """self.conv2d_41 = nn.Sequential(
+            nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(41),
+            nn.ELU(inplace=True),
+        )"""
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
         self.gen_coevolution_aggregator = gen_coevolution_aggregator

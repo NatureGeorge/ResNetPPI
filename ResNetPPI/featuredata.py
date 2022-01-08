@@ -16,7 +16,7 @@
 # @Filename: featuredata.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-08 01:51:25 pm
+# @Last Modified: 2022-01-08 03:38:13 pm
 import torch
 from pathlib import Path
 
@@ -27,8 +27,10 @@ from pathlib import Path
 # Journal of molecular biology, 256(3), 623–644. 
 # https://doi.org/10.1006/jmbi.1996.0114
 hydrophobic_group = [0, 4, 9, 10, 12, 13, 17, 18, 19] # seq order: ARNDCQEGHILKMFPSTWYV
+hydrophobic_group_hmo = [i+22 for i in hydrophobic_group]
 hydrophilic_group = [i for i in range(20) if i not in hydrophobic_group]
-hydrophobic_bool_tab = dict(tuple(zip(hydrophobic_group, [1]*len(hydrophobic_group)))+tuple(zip(hydrophilic_group, [0]*len(hydrophilic_group))))
+hydrophilic_group_hmo = [i+22 for i in hydrophilic_group]
+# hydrophobic_bool_tab = dict(tuple(zip(hydrophobic_group, [1]*len(hydrophobic_group)))+tuple(zip(hydrophilic_group, [0]*len(hydrophilic_group))))
 
 
 dir = Path(__file__).parent.absolute()
