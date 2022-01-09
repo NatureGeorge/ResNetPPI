@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-08 03:42:38 pm
+# @Last Modified: 2022-01-09 12:12:16 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -27,7 +27,7 @@ from ResNetPPI.utils import get_random_crop_idx
 
 def handle_cropping(ref_length: int, crop_d: bool, obs_idx: list):
     '''
-    Handle Cropping
+    Handle cropping for single protein
     '''
     cropping_info = {}
     if crop_d and (ref_length > CROP_SIZE):
@@ -112,25 +112,66 @@ def gen_coevolution_aggregator(iden_eff_weights, msa_embeddings, cur_length: int
     return coevo_couplings
 
 
+def handle_cropping_partner(ref_length: int, crop_d: bool, obs_idx: list):
+    '''
+    Handle cropping for the partner in a ppi
+    '''
+    if crop_d and (ref_length > CROP_SIZE):
+        crop_idx = get_random_crop_idx(ref_length, CROP_SIZE, obs_idx, 1)[0]
+        if crop_idx <= (ref_length - CROP_SIZE):
+            return range(crop_idx, crop_idx+CROP_SIZE)
+        else:
+            return range(crop_idx-CROP_SIZE+1, crop_idx+1)
+    else:
+        return range(ref_length)
+
+
+def gen_paired_evolution_aggregator(iden_eff_weights_1, iden_eff_weights_2,
+                                    msa_embeddings_1, msa_embeddings_2,
+                                    idx_range_1, idx_range_2):
+    cur_length_1, cur_length_2 = idx_range_1.stop-idx_range_1.start, idx_range_2.stop-idx_range_2.start
+    msa_embeddings_1 = msa_embeddings_1.transpose(0, 1)
+    msa_embeddings_2 = msa_embeddings_2.transpose(0, 1)
+    m_eff_1 = iden_eff_weights_1.sum()
+    m_eff_2 = iden_eff_weights_2.sum()
+    one_body_term_1 = torch.einsum('ckl,k->lc', msa_embeddings_1, iden_eff_weights_1)/m_eff_1
+    one_body_term_2 = torch.einsum('ckl,k->lc', msa_embeddings_2, iden_eff_weights_2)/m_eff_2
+    max_msa_embeddings_1 = torch.max(msa_embeddings_1.transpose(0, 2), dim=1)[0]  # $L_1 \times C$
+    max_msa_embeddings_2 = torch.max(msa_embeddings_2.transpose(0, 2), dim=1)[0]  # $L_2 \times C$
+    paired_evo_couplings = torch.zeros((1, cur_length_1, cur_length_2, 4224), dtype=msa_embeddings_1.dtype, device=msa_embeddings_1.device)
+    for use_idx_1, idx_1 in enumerate(idx_range_1):
+        x1 = one_body_term_1[idx_1]
+        x1_max = max_msa_embeddings_1[idx_1]
+        for use_idx_2, idx_2 in enumerate(idx_range_2):
+            x2 = one_body_term_2[idx_2]
+            x2_max = max_msa_embeddings_2[idx_2]
+            x12_max = torch.einsum('i,j->ij', x1_max, x2_max)  # $C \times C$
+            paired_evo_couplings[0, use_idx_1, use_idx_2, :64] = x1
+            paired_evo_couplings[0, use_idx_1, use_idx_2, 64:128] = x2
+            paired_evo_couplings[0, use_idx_1, use_idx_2, 128:] = x12_max.flatten()
+    return paired_evo_couplings
+
+
 class ResNetPPI(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM+HYDRO_DIM, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*4) # 18
+        """
         self.conv2d_37 = nn.Sequential(
             nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(37),
             nn.ELU(inplace=True),
         )
-        """self.conv2d_41 = nn.Sequential(
+        """
+        self.conv2d_41 = nn.Sequential(
             nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(41),
             nn.ELU(inplace=True),
-        )"""
+        )
         self.softmax_func = nn.Softmax(dim=1)
         self.loss_func = nn.CrossEntropyLoss()
-        self.gen_coevolution_aggregator = gen_coevolution_aggregator
         """
         cuda: bool = False, half: bool = False, cache: bool = True
         if cache and (loaded_gen_coevolution_aggregator[1] is not None):
@@ -181,7 +222,7 @@ class ResNetPPI(pl.LightningModule):
         # MSA Embeddings: $K \times C \times L$
         msa_embeddings = self.get_msa_embeddings(pw_encodings_group)
         cropping_info, cur_length, meshgrid, record_idx, record_mask = handle_cropping(msa_embeddings.shape[2], crop_d, obs_idx)
-        coevo_couplings = self.gen_coevolution_aggregator(iden_eff_weights.to(msa_embeddings.dtype), msa_embeddings, cur_length, meshgrid, record_idx, record_mask)
+        coevo_couplings = gen_coevolution_aggregator(iden_eff_weights.to(msa_embeddings.dtype), msa_embeddings, cur_length, meshgrid, record_idx, record_mask)
         r2s = self.resnet2d(coevo_couplings.movedim(3, 1))
         return self.conv2d_37(r2s), cropping_info
 
@@ -205,19 +246,21 @@ class ResNetPPI(pl.LightningModule):
         assert pred.shape[-1] > 0 and pred.shape[-2] > 0
         return self.loss_func(pred, target)
 
-    def training_step(self, train_batch, batch_idx):
+    def training_step_sp(self, train_batch, batch_idx):
+        '''single protein'''
         ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = train_batch
         l_idx_1 = ref_seq_info_1['obs_mask']
         pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, l_idx_1.tolist(), True)
-        assert not torch.isinf(pred_dist6d_1).any()
-        assert not torch.isnan(pred_dist6d_1).any()
+        #assert not torch.isinf(pred_dist6d_1).any()
+        #assert not torch.isnan(pred_dist6d_1).any()
         loss_1 = self.loss_single_protein(cropping_info_1, l_idx_1, pred_dist6d_1, label_dist6d_1.unsqueeze(0))
-        assert not torch.isinf(loss_1).any()
-        assert not torch.isnan(loss_1).any()
+        #assert not torch.isinf(loss_1).any()
+        #assert not torch.isnan(loss_1).any()
         self.log('train_loss', loss_1, batch_size=1, on_step=True, on_epoch=True)
         return loss_1
 
-    def validation_step(self, val_batch, batch_idx):
+    def validation_step_sp(self, val_batch, batch_idx):
+        '''single protein'''
         ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = val_batch
         l_idx_1 = ref_seq_info_1['obs_mask']
         pred_dist6d_1, cropping_info_1 = self.forward_single_protein(pw_encodings_group_1, iden_eff_weights_1, l_idx_1.tolist(), True)
@@ -225,9 +268,62 @@ class ResNetPPI(pl.LightningModule):
         self.log('val_loss', loss_1, batch_size=1, on_step=True, on_epoch=True)
         return loss_1
 
+    def forward_sp(self, inputs):
+        '''single protein'''
+        # NOTE: for prediction/inference actions
+        # pw_encodings_group, iden_eff_weights = inputs
+        pred = self.forward_single_protein(*inputs, [], False)[0]
+        return self.softmax_func(0.5*(pred + pred.transpose(-1, -2)))
+
+    def forward_ppi(self, pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2, obs_idx_1, obs_idx_2, crop_d: bool):
+        msa_embeddings_1 = self.get_msa_embeddings(pw_encodings_group_1)
+        msa_embeddings_2 = self.get_msa_embeddings(pw_encodings_group_2)
+        idx_range_1 = handle_cropping_partner(msa_embeddings_1.shape[2], crop_d, obs_idx_1)
+        idx_range_2 = handle_cropping_partner(msa_embeddings_2.shape[2], crop_d, obs_idx_2)
+        paired_evo_couplings = gen_paired_evolution_aggregator(
+            iden_eff_weights_1, iden_eff_weights_2,
+            msa_embeddings_1, msa_embeddings_2,
+            idx_range_1, idx_range_2)
+        return self.conv2d_41(self.resnet2d(paired_evo_couplings.movedim(3, 1))), idx_range_1, idx_range_2
+
+    def loss_ppi(self, obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred, target):
+        mask_1 = (obs_idx_1 >= idx_range_1.start) & (obs_idx_1 < idx_range_1.stop)
+        mask_2 = (obs_idx_2 >= idx_range_2.start) & (obs_idx_2 < idx_range_2.stop)
+        l_idx_1 = obs_idx_1[mask_1] - idx_range_1.start
+        l_idx_2 = obs_idx_2[mask_2] - idx_range_2.start
+        pred = pred[:, :, l_idx_1, :][:, :, :, l_idx_2]
+        t_l_idx_1 = torch.arange(obs_idx_1.shape[0], dtype=torch.int64)[mask_1]
+        t_l_idx_2 = torch.arange(obs_idx_2.shape[0], dtype=torch.int64)[mask_2]
+        target = target[:, t_l_idx_1, :][:, :, t_l_idx_2]
+        assert pred.shape[-1] > 0 and pred.shape[-2] > 0
+        return self.loss_func(pred, target)
+
+    def training_step(self, train_batch, batch_idx):
+        (ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1,
+         ref_seq_info_2, pw_encodings_group_2, iden_eff_weights_2,
+         label_dist6d_12) = train_batch
+        obs_idx_1, obs_idx_2 = ref_seq_info_1['obs_mask'], ref_seq_info_2['obs_mask']
+        pred_dist6d_12, idx_range_1, idx_range_2 = self.forward_ppi(pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2, obs_idx_1.tolist(), obs_idx_2.tolist(), True)
+        assert not torch.isinf(pred_dist6d_12).any()
+        assert not torch.isnan(pred_dist6d_12).any()
+        loss = self.loss_ppi(obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred_dist6d_12, label_dist6d_12.unsqueeze(0))
+        assert not torch.isinf(loss).any()
+        assert not torch.isnan(loss).any()
+        self.log('train_loss', loss, batch_size=1, on_step=True, on_epoch=True)
+        return loss
+    
+    def validation_step(self, val_batch, batch_idx):
+        (ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1,
+         ref_seq_info_2, pw_encodings_group_2, iden_eff_weights_2,
+         label_dist6d_12) = val_batch
+        obs_idx_1, obs_idx_2 = ref_seq_info_1['obs_mask'], ref_seq_info_2['obs_mask']
+        pred_dist6d_12, idx_range_1, idx_range_2 = self.forward_ppi(pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2, obs_idx_1.tolist(), obs_idx_2.tolist(), True)
+        loss = self.loss_ppi(obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred_dist6d_12, label_dist6d_12.unsqueeze(0))
+        self.log('val_loss', loss, batch_size=1, on_step=True, on_epoch=True)
+        return loss
+
     def forward(self, inputs):
         # NOTE: for prediction/inference actions
-        pw_encodings_group, iden_eff_weights = inputs
-        pred = self.forward_single_protein(pw_encodings_group, iden_eff_weights, [], False)[0]
-        return self.softmax_func(0.5*(pred + pred.transpose(-1, -2)))
+        # pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2 = inputs
+        return self.softmax_func(self.forward_ppi(*inputs, [], [], False)[0])
 

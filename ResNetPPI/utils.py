@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-08 07:01:19 pm
+# @Last Modified: 2022-01-08 10:11:45 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
 from ResNetPPI.featuredata import hydrophobic_group, hydrophilic_group, hydrophobic_group_hmo, hydrophilic_group_hmo
@@ -160,11 +160,11 @@ def sample_pairwise_aln(pw_msa, max_k: int):
     return random.sample(pw_msa, max_k)
 
 
-def get_random_crop_idx(ref_length, crop_size, obs_idx):
+def get_random_crop_idx(ref_length, crop_size, obs_idx, sample_size: int = 2):
     # assert (0 < crop_size) and (crop_size < ref_length)
     to_sample = tuple(i for i in obs_idx if ((i <= (ref_length - crop_size)) or (i >= (crop_size - 1))))
-    assert len(to_sample) >= 2
-    return random.sample(to_sample, 2)
+    assert len(to_sample) >= sample_size
+    return random.sample(to_sample, sample_size)
 
 
 def get_bin_map(idx: np.ndarray, mat: np.ndarray, size_bins: float, v_min: float, v_max: float, non_contact_at_first : bool = True) -> np.ndarray:
