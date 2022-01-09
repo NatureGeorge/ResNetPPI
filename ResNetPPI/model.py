@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-09 12:12:16 pm
+# @Last Modified: 2022-01-09 06:50:22 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -158,16 +158,9 @@ class ResNetPPI(pl.LightningModule):
         self.learning_rate = 1e-3
         self.resnet1d = ResNet1D(ENCODE_DIM+HYDRO_DIM, [8])
         self.resnet2d = ResNet2D(4224, [(1,2,4,8)]*4) # 18
-        """
         self.conv2d_37 = nn.Sequential(
             nn.Conv2d(96, 37, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(37),
-            nn.ELU(inplace=True),
-        )
-        """
-        self.conv2d_41 = nn.Sequential(
-            nn.Conv2d(96, 41, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(41),
             nn.ELU(inplace=True),
         )
         self.softmax_func = nn.Softmax(dim=1)
@@ -284,7 +277,10 @@ class ResNetPPI(pl.LightningModule):
             iden_eff_weights_1, iden_eff_weights_2,
             msa_embeddings_1, msa_embeddings_2,
             idx_range_1, idx_range_2)
-        return self.conv2d_41(self.resnet2d(paired_evo_couplings.movedim(3, 1))), idx_range_1, idx_range_2
+        assert not torch.isinf(paired_evo_couplings).any()
+        assert not torch.isnan(paired_evo_couplings).any()
+        torch.cuda.empty_cache()
+        return self.conv2d_37(self.resnet2d(paired_evo_couplings.movedim(3, 1))), idx_range_1, idx_range_2
 
     def loss_ppi(self, obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred, target):
         mask_1 = (obs_idx_1 >= idx_range_1.start) & (obs_idx_1 < idx_range_1.stop)
@@ -296,6 +292,7 @@ class ResNetPPI(pl.LightningModule):
         t_l_idx_2 = torch.arange(obs_idx_2.shape[0], dtype=torch.int64)[mask_2]
         target = target[:, t_l_idx_1, :][:, :, t_l_idx_2]
         assert pred.shape[-1] > 0 and pred.shape[-2] > 0
+        assert pred.shape[-2:] == target.shape[-2:]
         return self.loss_func(pred, target)
 
     def training_step(self, train_batch, batch_idx):

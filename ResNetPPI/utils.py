@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-08 10:11:45 pm
+# @Last Modified: 2022-01-09 03:27:22 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
 from ResNetPPI.featuredata import hydrophobic_group, hydrophilic_group, hydrophobic_group_hmo, hydrophilic_group_hmo
@@ -67,9 +67,10 @@ def check_anchor_atoms(res, gly_ca: bool = True):
 
 def get_real_or_virtual_CB(res, gly_ca: bool = True):
     if res.name != 'GLY':
-        #try:
-        return res['CB'][0].pos.tolist()
-        #except Exception:
+        try:
+            return res['CB'][0].pos.tolist()
+        except Exception:
+            pass
         #    LOGGER.debug(f"no CB for {res}")
     else:
         if gly_ca:
@@ -96,7 +97,7 @@ def get_representative_xyz(chain_obj, representative_atom='CB', gly_ca: bool = T
         xyz = np.array([res['CA'][0].pos.tolist() for res in chain_obj if 'CA' in res], dtype=dtype)
     else:
         return
-    assert xyz.shape[0] == chain_obj.length(), "Missing anchor atoms!"
+    #assert xyz.shape[0] == chain_obj.length(), "Missing anchor atoms!"
     return xyz
 
 

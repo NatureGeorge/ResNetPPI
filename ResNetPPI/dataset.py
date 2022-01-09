@@ -16,7 +16,7 @@
 # @Filename: dataset.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-09 12:05:59 pm
+# @Last Modified: 2022-01-09 06:50:37 pm
 from torch.utils.data import Dataset
 from ResNetPPI import DIST_CUTOFF, MAX_K
 from ResNetPPI.msa import *
@@ -57,7 +57,7 @@ class SeqStructDataset(Dataset):
         idx_12, dist6d_12 = get_dist6d_2(xyz_1, xyz_2, DIST_CUTOFF)
         #label_dist6d_1 = get_label_bin_map(idx_1, dist6d_1, 0.5, 2, 20, non_contact_at_first=False)
         #label_dist6d_2 = get_label_bin_map(idx_2, dist6d_2, 0.5, 2, 20, non_contact_at_first=False)
-        label_dist6d_12 = get_label_bin_map(idx_12, dist6d_12, 0.5, 0, 20, non_contact_at_first=False)
+        label_dist6d_12 = get_label_bin_map(idx_12, dist6d_12, 0.5, 2, 20, non_contact_at_first=False)
 
         loading_a3m_1 = load_pairwise_aln_from_a3m(msa_file_1)
         ref_seq_info_1 = next(loading_a3m_1)
@@ -80,5 +80,5 @@ class SeqStructDataset(Dataset):
         return (
             ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1,
             ref_seq_info_2, pw_encodings_group_2, iden_eff_weights_2,
-            label_dist6d_12
-            )
+            label_dist6d_12)
+
