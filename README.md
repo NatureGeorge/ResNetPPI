@@ -199,7 +199,7 @@ Real-valued distances are discretely binned:
 ### Model Design
 
 * for each protein sequence (of length $L$) search homologous sequences and input the MSA (of size $K$) if possible, otherwise input the single sequence
-  * use original MSA to calculate the weight $w_k$ for each homologous sequence, $w_k=\frac{1}{\#\text{sequence with identity}\ge 0.8}$
+  * use original MSA to calculate the weight $w_k$ for each homologous sequence, $w_k=\frac{1}{\text{count}(\text{sequence with identity}\ge 0.8)}$
   * calculate $M_\text{eff}=\sum_{k}^{K}w_k$
 * **MSA Encoding**: perform onehot-encoding for each pairwise alignment ($2\times L_k$, consider both insertion and deletion: $\rightarrow 48\times L_k$)
   * onehot-encoding including 22+2 channels for the reference sequence, 22+2 channels for the homologous sequence
