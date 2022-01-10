@@ -16,7 +16,7 @@
 # @Filename: inference_pipeline.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-06 04:34:49 pm
+# @Last Modified: 2022-01-10 01:46:09 pm
 import sys
 import argparse
 from pathlib import Path
@@ -38,12 +38,13 @@ if __name__ == '__main__':
     from ResNetPPI.dataset import SeqStructDataset
     test_data = SeqStructDataset(args.pdb_list_test, args.msa_dir, args.pdb_dir, 10000)
     test_loader = iter(DataLoader(dataset=test_data, batch_size=None))
-    ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1, label_dist6d_1 = next(test_loader)
+    (ref_seq_info_1, pw_encodings_group_1, iden_eff_weights_1,
+     ref_seq_info_2, pw_encodings_group_2, iden_eff_weights_2,
+     label_dist6d_12) = next(test_loader)
     model = ResNetPPI.load_from_checkpoint(args.weights_dir)
     model.eval()
     with torch.no_grad():
-        reconstruction = model((pw_encodings_group_1, iden_eff_weights_1))
-    del ref_seq_info_1['obs_mask']
-    print("cross-entropy loss of {}: {}".format(ref_seq_info_1, torch.nn.NLLLoss()(torch.log(reconstruction), label_dist6d_1.unsqueeze(0)).item()))
+        reconstruction = model((pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2))
+    print("cross-entropy loss: {}".format(torch.nn.NLLLoss()(torch.log(reconstruction), label_dist6d_12.unsqueeze(0)).item()))
     torch.save(reconstruction, args.output)
     

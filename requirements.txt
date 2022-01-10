@@ -3,7 +3,6 @@ numpy
 scipy
 pytorch-lightning
 numba
-monkeytype
 gemmi
 joblib
 orjson

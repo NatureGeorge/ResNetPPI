@@ -258,7 +258,7 @@ Real-valued distances are discretely binned:
 
 ## Acknowledgment
 
-I would like to thank Jinyuan Guo and Prof. Huaiqiu Zhu for their helpful guidance and provide me with devices to develop this project.
+I would like to thank Jinyuan Guo and Prof. Huaiqiu Zhu for their helpful discussions and provide me with devices to develop this project.
 
 ## Reference Papers
 
