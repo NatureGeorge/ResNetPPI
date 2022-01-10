@@ -16,7 +16,7 @@
 # @Filename: model.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-09 06:50:22 pm
+# @Last Modified: 2022-01-09 10:47:30 pm
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -139,9 +139,10 @@ def gen_paired_evolution_aggregator(iden_eff_weights_1, iden_eff_weights_2,
     max_msa_embeddings_1 = torch.max(msa_embeddings_1.transpose(0, 2), dim=1)[0]  # $L_1 \times C$
     max_msa_embeddings_2 = torch.max(msa_embeddings_2.transpose(0, 2), dim=1)[0]  # $L_2 \times C$
     paired_evo_couplings = torch.zeros((1, cur_length_1, cur_length_2, 4224), dtype=msa_embeddings_1.dtype, device=msa_embeddings_1.device)
+    m_eff_12 = torch.sqrt(m_eff_1*m_eff_2)
     for use_idx_1, idx_1 in enumerate(idx_range_1):
         x1 = one_body_term_1[idx_1]
-        x1_max = max_msa_embeddings_1[idx_1]
+        x1_max = max_msa_embeddings_1[idx_1]/m_eff_12  ## avoid overflow
         for use_idx_2, idx_2 in enumerate(idx_range_2):
             x2 = one_body_term_2[idx_2]
             x2_max = max_msa_embeddings_2[idx_2]
@@ -277,10 +278,15 @@ class ResNetPPI(pl.LightningModule):
             iden_eff_weights_1, iden_eff_weights_2,
             msa_embeddings_1, msa_embeddings_2,
             idx_range_1, idx_range_2)
-        assert not torch.isinf(paired_evo_couplings).any()
-        assert not torch.isnan(paired_evo_couplings).any()
+        #assert not torch.isinf(paired_evo_couplings).any()
+        #assert not torch.isnan(paired_evo_couplings).any()
         torch.cuda.empty_cache()
-        return self.conv2d_37(self.resnet2d(paired_evo_couplings.movedim(3, 1))), idx_range_1, idx_range_2
+        ret = self.conv2d_37(self.resnet2d(paired_evo_couplings.movedim(3, 1))), idx_range_1, idx_range_2
+        #assert not torch.isinf(ret[0]).any()
+        if torch.isnan(ret[0]).any():
+            torch.save(paired_evo_couplings.detach(), 'paired_evo_couplings.pt')
+            raise AssertionError((paired_evo_couplings.max(), paired_evo_couplings.min()))
+        return ret
 
     def loss_ppi(self, obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred, target):
         mask_1 = (obs_idx_1 >= idx_range_1.start) & (obs_idx_1 < idx_range_1.stop)
@@ -301,8 +307,6 @@ class ResNetPPI(pl.LightningModule):
          label_dist6d_12) = train_batch
         obs_idx_1, obs_idx_2 = ref_seq_info_1['obs_mask'], ref_seq_info_2['obs_mask']
         pred_dist6d_12, idx_range_1, idx_range_2 = self.forward_ppi(pw_encodings_group_1, pw_encodings_group_2, iden_eff_weights_1, iden_eff_weights_2, obs_idx_1.tolist(), obs_idx_2.tolist(), True)
-        assert not torch.isinf(pred_dist6d_12).any()
-        assert not torch.isnan(pred_dist6d_12).any()
         loss = self.loss_ppi(obs_idx_1, obs_idx_2, idx_range_1, idx_range_2, pred_dist6d_12, label_dist6d_12.unsqueeze(0))
         assert not torch.isinf(loss).any()
         assert not torch.isnan(loss).any()

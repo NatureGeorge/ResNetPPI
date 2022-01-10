@@ -4,7 +4,7 @@ authors:
   - family-names: Zhu
     given-names: Zefeng
     orcid: https://orcid.org/0000-0002-2761-3291
-title: "`ResNetPPI`"
+title: "`ResNetPPI`: Predicting protein inter-chain residue distances from sequences irrespective of paired MSA"
 version: 0.1.0
 date-released: 2022-01-05
 license: Apache-2.0
