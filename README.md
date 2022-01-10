@@ -19,12 +19,8 @@ A lab rotation project. Under development from 2021.12 to 2022.1.
 
 ### Data Resources
 
-* [UniRef30_2020_06_hhsuite.tar.gz](http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
+* Sequence database e.g. [UniRef30_2020_06_hhsuite.tar.gz](http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
 * PDB structures
-
-### Dataset Preparation
-
-...
 
 ### Input Features
 
@@ -240,6 +236,13 @@ Real-valued distances are discretely binned:
 ## Current Training and Validation Results
 
 <img src="./figs/loss_epoch.png" width=45%>
+
+### Dataset Preparation
+
+* training dataset (362)
+* validation dataset (100)
+
+> NOTE: the datasets have not been carefully curated, they just serve as demo inputs for training and validation. Thus the training and validation results are just a demonstration of the model's learning ability.
 
 ## TODO
 
