@@ -16,7 +16,7 @@
 # @Filename: utils.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: ZeFeng Zhu
-# @Last Modified: 2022-01-09 03:27:22 pm
+# @Last Modified: 2022-01-11 11:02:17 pm
 from ResNetPPI.coords6d import *
 from ResNetPPI import ONEHOT_DIM, ENCODE_DIM
 from ResNetPPI.featuredata import hydrophobic_group, hydrophilic_group, hydrophobic_group_hmo, hydrophilic_group_hmo
@@ -140,7 +140,7 @@ def load_pairwise_aln_from_a3m(path):
                 # assert ref_seq_vec.shape == oth_seq_vec.shape, 'Unexpected situation!'
                 yield np.asarray([ref_seq_vec, oth_seq_vec])
         if not with_hmo:
-            yield np.asarray([ref_seq_vec, np.full_like(ref_seq_vec, 21)])
+            yield np.asarray([ref_seq_vec, ref_seq_vec])
 
 
 def gen_ref_msa_from_pairwise_aln(pw_msa):
@@ -303,10 +303,7 @@ ONEHOT = np.eye(ONEHOT_DIM, dtype=np.float32)
 def onehot_encoding(aln: np.ndarray) -> np.ndarray:
     encoding = ONEHOT[aln].transpose((0, 2, 1))
     encoding = encoding.reshape(-1, encoding.shape[-1])
-    ret = encoding.reshape(ENCODE_DIM, -1)
-    if (ret[43] > 0).all():
-        ret[43] = 0
-    return ret
+    return encoding.reshape(ENCODE_DIM, -1)
 
 
 def add_hydro_encoding(encoding: np.ndarray) -> np.ndarray:

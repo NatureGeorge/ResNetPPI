@@ -188,7 +188,7 @@ Real-valued distances are discretely binned:
   * 8 1d-blocks (64 channels)
 * ResNet2D
   * 2d residual block: ((Conv2d + BatchNorm2d) + ELU + (Conv2d + BatchNorm2d)) (+) ELU
-  * 16 2d-blocks (96 channels), cycling through dulations \[1,2,4,8\]
+  * 16 2d-blocks (96 channels), cycling through dilations $(1,2,4,8)$
 * (mini-)batch size: 1
 * Cross-entropy Loss
 
@@ -201,7 +201,7 @@ Real-valued distances are discretely binned:
   * onehot-encoding including 22+2 channels for the reference sequence, 22+2 channels for the homologous sequence
   * 22: 20 amino acid types + 1 gap + 1 unknown type
   * 2: 1 hydrophoblic + 1 hydrophilic
-  * for the single sequence input, all the homologous related channels are filled with zeroes
+  * for the single sequence input, all the homologous related channels are filled with the reference sequence's corresponding values
   * hence we get $\{48\times L_k, k\in K\}$
 * **MSA Embedding**: for each encoded pairwise alignment, feed into the `ResNet1D` and get embedded pairwise alignment ($64\times L_k$)
   * hence we get $\{64\times L_k, k\in K\}$
@@ -257,7 +257,7 @@ Real-valued distances are discretely binned:
   * CUDA Version: 11.2
 * Software
   * Python 3.8 or later in a conda environment
-  * Python packages: see [requirements](requirements.txt)
+  * PyTorch and other Python packages: see [requirements](requirements.txt)
 
 ## Acknowledgment
 
