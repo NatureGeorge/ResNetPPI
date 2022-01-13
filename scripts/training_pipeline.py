@@ -16,7 +16,7 @@
 # @Filename: training_pipeline.py
 # @Email:  zhuzefeng@stu.pku.edu.cn
 # @Author: Zefeng Zhu
-# @Last Modified: 2022-01-06 04:28:25 pm
+# @Last Modified: 2022-01-13 04:14:23 pm
 import argparse
 import sys
 from pathlib import Path
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument("-msa_dir", type=str, required=False, dest='msa_dir', default="./workdir/msa_dataset/", help="MSA file directory.")
     parser.add_argument("-pdb_dir", type=str, required=False, dest='pdb_dir', default="./workdir/pdb_dataset/", help="PDB file directory.")
     parser.add_argument("-src_dir", type=str, required=False, dest='sc_dir', default="./workdir/ResNetPPI-main", help="`ResNetPPI` source code directory.")
-    parser.add_argument('-num_workers', type=int, required=False, dest='num_workers', default=4, help='number of workers to use for DataLoader.')
+    parser.add_argument('-num_workers', type=int, required=False, dest='num_workers', default=2, help='number of workers to use for DataLoader.')
     parser.add_argument('-gpus', type=str, required=False, dest='gpus', default="1", help='list of GPU (comma-seperate) to use during training.')
     parser.add_argument('-max_epochs', type=int, required=False, dest='max_epochs', default=20, help='number of epochs.')
     parser.add_argument('-precision', type=int, required=False, dest='precision', default=16, help='precision')

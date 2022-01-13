@@ -235,7 +235,7 @@ Real-valued distances are discretely binned:
 
 ## Current Training and Validation Results
 
-<img src="./figs/loss_epoch.png" width=45%>
+<img src="./figs/loss_epoch.new.png" width=45%>
 
 ### Dataset Preparation
 

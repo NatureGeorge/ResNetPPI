@@ -5,3 +5,4 @@ scripts/tex2md.sh
 _*.ipynb
 lightning_logs
 _*.pt
+*.pdf
